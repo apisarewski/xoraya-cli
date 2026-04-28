@@ -1,0 +1,7 @@
+*.o
+*.d
+xoraya-cli
+downloads/
+logs/
+CLAUDE_cli.md
+*.py

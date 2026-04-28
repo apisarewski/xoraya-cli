@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>xoraya-cli — Reference</title>
+<style>
+  :root {
+    --bg:        #f8f9fa;
+    --surface:   #ffffff;
+    --border:    #dee2e6;
+    --accent:    #1a6fb4;
+    --accent-dk: #145a96;
+    --text:      #212529;
+    --muted:     #6c757d;
+    --code-bg:   #1e1e2e;
+    --code-fg:   #cdd6f4;
+    --warn-bg:   #fff8e1;
+    --warn-bd:   #f9a825;
+    --ok-bg:     #e8f5e9;
+    --ok-bd:     #388e3c;
+    --tag-blue:  #d0e8ff;
+    --tag-gray:  #e9ecef;
+    --sidebar-w: 260px;
+    --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--text);
+    background: var(--bg);
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ── Sidebar ─────────────────────────────────────────────── */
+  nav {
+    width: var(--sidebar-w);
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    overflow-y: auto;
+    padding: 24px 0 40px;
+  }
+  nav .logo {
+    padding: 0 20px 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  nav .logo h1 {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--accent);
+    font-family: var(--font-mono);
+  }
+  nav .logo p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  nav ul { list-style: none; }
+  nav ul li a {
+    display: block;
+    padding: 6px 20px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13.5px;
+    border-left: 3px solid transparent;
+    transition: background 0.1s, border-color 0.1s;
+  }
+  nav ul li a:hover { background: var(--bg); }
+  nav ul li a.active { border-left-color: var(--accent); color: var(--accent); font-weight: 600; }
+  nav ul li.section {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    padding: 14px 20px 4px;
+  }
+  nav ul li.sub a { padding-left: 36px; }
+
+  /* ── Main content ────────────────────────────────────────── */
+  main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    max-width: 900px;
+    padding: 48px 48px 80px;
+  }
+
+  /* ── Sections ────────────────────────────────────────────── */
+  section { margin-bottom: 64px; scroll-margin-top: 24px; }
+  section + section { border-top: 1px solid var(--border); padding-top: 48px; }
+
+  h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 18px;
+  }
+  h3 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 28px 0 10px;
+    color: var(--text);
+  }
+  h4 {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 20px 0 8px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+  p { margin-bottom: 12px; }
+  ul, ol { margin: 0 0 12px 20px; }
+  li { margin-bottom: 4px; }
+  a { color: var(--accent); }
+
+  /* ── Code ────────────────────────────────────────────────── */
+  code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--tag-gray);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    border-radius: 8px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.55;
+    margin: 12px 0 18px;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
+
+  /* syntax hint colors */
+  .kw   { color: #cba6f7; }  /* keyword/flag */
+  .str  { color: #a6e3a1; }  /* string/path */
+  .cmt  { color: #6c7086; }  /* comment */
+  .cmd  { color: #89dceb; }  /* shell command */
+  .num  { color: #fab387; }  /* number */
+  .ok   { color: #a6e3a1; }  /* success */
+  .err  { color: #f38ba8; }  /* error */
+  .hdr  { color: #f9e2af; }  /* header/label */
+  .dim  { color: #6c7086; }  /* dimmed */
+
+  /* ── Tables ──────────────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 18px; font-size: 14px; }
+  th { background: var(--bg); border: 1px solid var(--border); padding: 8px 12px; text-align: left; font-weight: 600; }
+  td { border: 1px solid var(--border); padding: 8px 12px; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+
+  /* ── Callouts ────────────────────────────────────────────── */
+  .callout {
+    padding: 14px 18px;
+    border-radius: 6px;
+    margin: 14px 0;
+    font-size: 14px;
+    border-left: 4px solid;
+  }
+  .callout.warn { background: var(--warn-bg); border-color: var(--warn-bd); }
+  .callout.ok   { background: var(--ok-bg);   border-color: var(--ok-bd);  }
+  .callout strong { display: block; margin-bottom: 4px; }
+
+  /* ── Command cards ───────────────────────────────────────── */
+  .cmd-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin: 20px 0;
+    overflow: hidden;
+  }
+  .cmd-card-head {
+    background: var(--bg);
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .cmd-card-head .name {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .cmd-card-head .desc { color: var(--muted); font-size: 13px; }
+  .cmd-card-body { padding: 16px 18px; }
+
+  /* ── Architecture diagram ────────────────────────────────── */
+  .arch-box {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 16px 0;
+  }
+  .arch-row { display: flex; align-items: stretch; gap: 8px; }
+  .box {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    background: var(--surface);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    flex: 1;
+  }
+  .box.accent { border-color: var(--accent); background: var(--tag-blue); }
+  .box.dim    { background: var(--bg); color: var(--muted); }
+  .box .label { font-weight: 700; display: block; margin-bottom: 2px; }
+  .box .sub   { font-size: 11px; color: var(--muted); }
+  .arrow { align-self: center; color: var(--muted); font-size: 18px; flex-shrink: 0; }
+
+  /* ── Flow steps ──────────────────────────────────────────── */
+  .flow { margin: 12px 0; counter-reset: step; }
+  .flow-step {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 10px;
+    align-items: flex-start;
+  }
+  .flow-step::before {
+    counter-increment: step;
+    content: counter(step);
+    flex-shrink: 0;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+  }
+  .flow-step p { margin: 0; font-size: 14px; }
+  .flow-step code { font-size: 12px; }
+
+  /* ── Tag badges ──────────────────────────────────────────── */
+  .tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    margin-right: 4px;
+  }
+  .tag.blue { background: var(--tag-blue); color: var(--accent-dk); }
+  .tag.gray { background: var(--tag-gray); color: var(--muted); }
+  .tag.red  { background: #fdecea; color: #b71c1c; }
+  .tag.grn  { background: var(--ok-bg); color: #1b5e20; }
+
+  /* ── Misc ────────────────────────────────────────────────── */
+  .muted { color: var(--muted); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+  @media (max-width: 780px) {
+    nav { display: none; }
+    main { margin-left: 0; padding: 24px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ SIDEBAR ═══════════════════════════════ -->
+<nav>
+  <div class="logo">
+    <h1>xoraya-cli</h1>
+    <p>Xoraya Logger CLI — Linux</p>
+  </div>
+  <ul>
+    <li class="section">Getting started</li>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#build">Build</a></li>
+
+    <li class="section">Commands</li>
+    <li><a href="#cmd-scan">scan</a></li>
+    <li><a href="#cmd-list">list</a></li>
+    <li><a href="#cmd-download">download</a></li>
+    <li><a href="#cmd-delete">delete</a></li>
+    <li><a href="#cmd-collect">collect</a></li>
+
+    <li class="section">Output files</li>
+    <li><a href="#files">Naming &amp; splits</a></li>
+
+    <li class="section">Internals</li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#download-flow">Download flow</a></li>
+    <li><a href="#dlc-bug">DLC bug &amp; fix</a></li>
+    <li><a href="#sdk">SDK notes</a></li>
+
+    <li class="section">Reference</li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+  </ul>
+</nav>
+
+<!-- ═══════════════════════════════ MAIN ══════════════════════════════════ -->
+<main>
+
+<!-- ── Overview ─────────────────────────────────────────────────────────── -->
+<section id="overview">
+  <h2>Overview</h2>
+  <p>
+    <strong>xoraya-cli</strong> is a Linux command-line tool for interacting with
+    <strong>Xoraya / X2E dataloggers</strong> (ML-N4000 family and compatible devices).
+    It replaces the Windows-only GUI workflow with a scriptable, headless interface
+    suitable for automated data collection.
+  </p>
+  <p>
+    The tool is built in <strong>C++17</strong>, links directly against the
+    <strong>X2E Linux SDK</strong> (<code>libxorayasdk</code>) installed as a system
+    library, and produces no Qt dependency. The output binary is a single self-contained
+    executable.
+  </p>
+
+  <h3>What it does</h3>
+  <ul>
+    <li>Discovers loggers on the local network via UDP broadcast</li>
+    <li>Lists measurements stored on a logger's HDD</li>
+    <li>Downloads measurements as <strong>MF4</strong> files, split at 50 MB</li>
+    <li>Optionally deletes measurements from the logger after a successful download</li>
+    <li>Automates collection across multiple loggers, with optional looping</li>
+    <li>Applies an in-place post-processing fix to correct a DLC field bug in the Linux SDK</li>
+  </ul>
+
+  <h3>Device support</h3>
+  <table>
+    <tr><th>Type</th><th>scan</th><th>list</th><th>download</th><th>delete</th></tr>
+    <tr><td>Gen2 / N4000 / DataCube / DLNcluster</td>
+        <td>✓</td><td>✓</td><td>✓ MF4</td><td>✓</td></tr>
+    <tr><td>Gen3 / DataCubeNSeries</td>
+        <td>✓</td><td>—</td><td>✓ native format</td><td>✓</td></tr>
+    <tr><td>Gen1</td>
+        <td>✓ (scan only)</td><td>✗</td><td>✗</td><td>✗</td></tr>
+  </table>
+</section>
+
+<!-- ── Build ─────────────────────────────────────────────────────────────── -->
+<section id="build">
+  <h2>Build</h2>
+
+  <h3>Prerequisites</h3>
+  <table>
+    <tr><th>Dependency</th><th>Expected location</th><th>Verify</th></tr>
+    <tr><td>X2E Linux SDK — headers</td><td><code>/usr/include/x2e/</code></td>
+        <td><code>ls /usr/include/x2e/loggerclient.h</code></td></tr>
+    <tr><td>X2E Linux SDK — shared library</td><td><code>/usr/lib/libxorayasdk.so</code></td>
+        <td><code>ls /usr/lib/libxorayasdk.so</code></td></tr>
+    <tr><td>C++ compiler</td><td><code>g++</code> ≥ 9</td>
+        <td><code>g++ --version</code></td></tr>
+    <tr><td>POSIX threads</td><td>system <code>libpthread</code></td><td>standard with glibc</td></tr>
+  </table>
+
+  <div class="callout warn">
+    <strong>⚠ SDK version</strong>
+    The tool requires <strong>libxorayasdk 1.00.0046</strong>. Version 1.00.0049 produces
+    split files ~3× too large. The DLC bug (see below) is a known issue with 1.00.0046 and
+    is corrected automatically by the post-processing patch.
+  </div>
+
+  <h3>Compile</h3>
+<pre><code><span class="cmd">cd cli/</span>
+<span class="cmd">make</span>          <span class="cmt"># produces ./xoraya-cli</span>
+<span class="cmd">make clean</span>    <span class="cmt"># remove build artifacts</span></code></pre>
+
+  <h3>Makefile</h3>
+<pre><code><span class="hdr">CXX</span>      ?= g++
+<span class="hdr">CXXFLAGS</span>  = -std=c++17 -Wall -Wextra -fPIC -O2
+<span class="hdr">LDFLAGS</span>   = -lxorayasdk -lpthread
+
+<span class="hdr">SRCS</span> = main.cpp scanner.cpp downloader.cpp collector.cpp</code></pre>
+
+  <p>
+    Dependencies are tracked automatically via <code>-MMD -MP</code>. No
+    <code>X2E_XorayaWin32_DYN_LINKING_AUTO</code> macro is defined — that is a
+    Windows-only pragma and has no effect on Linux.
+  </p>
+</section>
+
+<!-- ── Commands ──────────────────────────────────────────────────────────── -->
+<section id="cmd-scan">
+  <h2>Command: <code>scan</code></h2>
+
+  <div class="cmd-card">
+    <div class="cmd-card-head">
+      <span class="name">xoraya-cli scan</span>
+      <span class="desc">Discover loggers on the local network</span>
+    </div>
+    <div class="cmd-card-body">
+<pre><code><span class="cmd">./xoraya-cli scan</span></code></pre>
+
+      <p>Broadcasts a UDP scan on the local network for <strong>2 seconds</strong> and prints
+      all loggers that respond.</p>
+
+      <h4>Example output</h4>
+<pre><code><span class="hdr">Nom                       IP               Firmware             État               Type</span>
+<span class="dim">-------------------------  ----------------  --------------------  ------------------  ----------</span>
+<span class="ok">DX11252-2                 192.168.2.1      4.0b.0022            Multi-Logging       Gen2 (N4000)</span>
+<span class="ok">DX11242-1                 192.168.2.5      4.0b.0022            Stopped             Gen2 (N4000)</span>
+
+<span class="num">2</span> logger(s) trouvé(s).</code></pre>
+
+      <table>
+        <tr><th>Field</th><th>Description</th></tr>
+        <tr><td><strong>Nom</strong></td><td>Alias name — use this as <code>&lt;device&gt;</code> in other commands</td></tr>
+        <tr><td><strong>IP</strong></td><td>IPv4 address — also accepted as <code>&lt;device&gt;</code></td></tr>
+        <tr><td><strong>Firmware</strong></td><td>Logger firmware version string</td></tr>
+        <tr><td><strong>État</strong></td><td>Current state: <em>Multi-Logging</em>, <em>Stopped</em>, etc.</td></tr>
+        <tr><td><strong>Type</strong></td><td>Device family (Gen2, DataCube, DLNcluster, Gen3…)</td></tr>
+      </table>
+
+      <div class="callout warn">
+        <strong>Note</strong>
+        The scan uses UDP broadcast and does not cross routers. The host machine and the
+        loggers must be on the same L2 subnet.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="cmd-list">
+  <h2>Command: <code>list</code></h2>
+
+  <div class="cmd-card">
+    <div class="cmd-card-head">
+      <span class="name">xoraya-cli list &lt;device&gt;</span>
+      <span class="desc">List measurements on a logger's HDD</span>
+    </div>
+    <div class="cmd-card-body">
+<pre><code><span class="cmd">./xoraya-cli list DX11252-2</span>
+<span class="cmd">./xoraya-cli list 192.168.2.1</span></code></pre>
+
+      <p>Connects to the logger, temporarily stops logging if it is running, reads the HDD
+      measurement directory, prints the table, then restarts logging.</p>
+
+      <h4>Example output</h4>
+<pre><code>Logger : DX11252-2  (<span class="num">3</span> mesure(s))
+
+ <span class="hdr">  #  Début (UTC)          Fin (UTC)            Messages     Taille  Type</span>
+ <span class="dim">----------------------------------------------------------------------------------</span>
+   <span class="num">0</span>  2026-04-23 13:00:40  2026-04-23 13:19:20   1233995   <span class="num">52.4 MB</span>  Main
+   <span class="num">1</span>  2026-04-23 14:00:00  2026-04-23 14:30:00    567120   <span class="num">24.1 MB</span>  Main
+   <span class="num">2</span>  2026-04-23 15:00:00  2026-04-23 15:02:30     12400  <span class="num">448.7 KB</span>  Snapshot</code></pre>
+
+      <table>
+        <tr><th>Field</th><th>Description</th></tr>
+        <tr><td><strong>#</strong></td><td>Zero-based index — used as <code>N</code> in <code>download</code> and <code>delete</code></td></tr>
+        <tr><td><strong>Début / Fin</strong></td><td>UTC start/end timestamps of the measurement</td></tr>
+        <tr><td><strong>Messages</strong></td><td>Number of log messages recorded</td></tr>
+        <tr><td><strong>Taille</strong></td><td>Uncompressed data size on the HDD</td></tr>
+        <tr><td><strong>Type</strong></td><td><em>Main</em> (continuous recording) or <em>Snapshot</em> (triggered capture)</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="cmd-download">
+  <h2>Command: <code>download</code></h2>
+
+  <div class="cmd-card">
+    <div class="cmd-card-head">
+      <span class="name">xoraya-cli download &lt;device&gt; &lt;dest_dir&gt; [N] [--delete-after-download]</span>
+      <span class="desc">Download measurements to a local directory</span>
+    </div>
+    <div class="cmd-card-body">
+
+      <table>
+        <tr><th>Argument</th><th>Required</th><th>Description</th></tr>
+        <tr><td><code>&lt;device&gt;</code></td><td>Yes</td><td>Logger alias name or IP address</td></tr>
+        <tr><td><code>&lt;dest_dir&gt;</code></td><td>Yes</td><td>Local destination directory (created automatically)</td></tr>
+        <tr><td><code>N</code></td><td>No</td><td>Index of a specific measurement. Omit to download all.</td></tr>
+        <tr><td><code>--delete-after-download</code></td><td>No</td><td>Delete from logger after a successful download</td></tr>
+      </table>
+
+      <h4>Examples</h4>
+<pre><code><span class="cmt"># Download all measurements</span>
+<span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs</span>
+
+<span class="cmt"># Download measurement at index 7 only</span>
+<span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs 7</span>
+
+<span class="cmt"># Download all and delete afterwards</span>
+<span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs --delete-after-download</span>
+
+<span class="cmt"># Download measurement 2 and delete it afterwards</span>
+<span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs 2 --delete-after-download</span></code></pre>
+
+      <h4>Example output (Gen2)</h4>
+<pre><code>Connexion à 'DX11252-2'...
+Connecté. Type : Gen2 (engine::Download + MF4)
+Téléchargement de <span class="num">3</span> mesure(s)...
+
+  → Mesure 0
+   <span class="num">45.2</span>%  <span class="num">12</span> Mbit/s
+  <span class="ok">✓  52466504 / 52466504 octets</span>
+  [patch_dlc] <span class="num">11</span> fichier(s) corrigé(s), <span class="num">13573945</span> champ(s) DLC
+
+  → Mesure 1
+  <span class="ok">✓  24100000 / 24100000 octets</span>
+  [patch_dlc] <span class="num">5</span> fichier(s) corrigé(s), <span class="num">5894321</span> champ(s) DLC
+
+  Vitesse moyenne globale : <span class="num">10</span> Mbit/s
+
+Fichiers disponibles dans : /tmp/logs</code></pre>
+
+      <div class="callout ok">
+        <strong>Non-destructive by default</strong>
+        <code>--delete-after-download</code> must be passed explicitly. Without it, no
+        measurement is ever deleted from the logger.
+      </div>
+
+      <div class="callout warn">
+        <strong>No deduplication</strong>
+        Downloading the same measurement twice overwrites the existing file. Use
+        <code>--delete-after-download</code> or the <code>collect</code> loop to avoid
+        re-downloading already-collected data.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="cmd-delete">
+  <h2>Command: <code>delete</code></h2>
+
+  <div class="cmd-card">
+    <div class="cmd-card-head">
+      <span class="name">xoraya-cli delete &lt;device&gt; &lt;N&gt;</span>
+      <span class="desc">Delete a measurement from the logger's HDD</span>
+    </div>
+    <div class="cmd-card-body">
+<pre><code><span class="cmd">./xoraya-cli delete DX11252-2 2</span></code></pre>
+
+      <div class="callout warn">
+        <strong>⚠ Irreversible</strong>
+        Use <code>list</code> to confirm the index before deleting. There is no undo.
+      </div>
+
+      <h4>Example output</h4>
+<pre><code>⚠  Suppression de la mesure <span class="num">2</span> sur 'DX11252-2'...
+   <span class="ok">Mesure 2 supprimée.</span></code></pre>
+
+      <p>On <strong>Gen3</strong> devices, deletion is performed by time range
+      (begin/end timestamps of the measurement) via
+      <code>HddDeleteFinalMeasurement</code>. On <strong>Gen2</strong>, it uses
+      <code>HddDeleteMeasurement</code> with the measurement list object.</p>
+    </div>
+  </div>
+</section>
+
+<section id="cmd-collect">
+  <h2>Command: <code>collect</code></h2>
+
+  <div class="cmd-card">
+    <div class="cmd-card-head">
+      <span class="name">xoraya-cli collect [options]</span>
+      <span class="desc">Automated multi-logger data collection</span>
+    </div>
+    <div class="cmd-card-body">
+
+      <p>Combines scan + download into a single automated command. Can run once or loop indefinitely.</p>
+
+      <table>
+        <tr><th>Option</th><th>Default</th><th>Description</th></tr>
+        <tr><td><code>--dest &lt;dir&gt;</code></td><td><code>./downloads</code></td>
+            <td>Destination directory (created if absent)</td></tr>
+        <tr><td><code>--delete-after-download</code></td><td>off</td>
+            <td>Delete measurements from logger after successful download</td></tr>
+        <tr><td><code>--interval &lt;s&gt;</code></td><td>off</td>
+            <td>Loop indefinitely, re-scanning every <em>s</em> seconds (must be &gt; 0)</td></tr>
+        <tr><td><code>--device &lt;ip&gt;</code></td><td>all</td>
+            <td>Restrict to one logger by exact IP address</td></tr>
+        <tr><td><code>--dry-run</code></td><td>off</td>
+            <td>Show what would happen without performing any transfer</td></tr>
+        <tr><td><code>--verbose</code></td><td>off</td>
+            <td>Print full per-measurement progress (same output as <code>download</code>)</td></tr>
+      </table>
+
+      <h4>Examples</h4>
+<pre><code><span class="cmt"># One-shot, all loggers</span>
+<span class="cmd">./xoraya-cli collect</span>
+
+<span class="cmt"># Target a specific directory</span>
+<span class="cmd">./xoraya-cli collect --dest /data/xoraya</span>
+
+<span class="cmt"># Loop every 5 minutes, delete after download</span>
+<span class="cmd">./xoraya-cli collect --dest /data/xoraya --interval 300 --delete-after-download</span>
+
+<span class="cmt"># Restrict to one logger</span>
+<span class="cmd">./xoraya-cli collect --device 192.168.2.1 --dest /data/xoraya</span>
+
+<span class="cmt"># Preview without downloading</span>
+<span class="cmd">./xoraya-cli collect --dry-run --verbose</span></code></pre>
+
+      <h4>Simple mode output (default)</h4>
+<pre><code>[2026-04-28 09:00:00 UTC] Scan du réseau (2 s)...
+  <span class="hdr">DX11252-2                </span> → <span class="ok">OK</span>
+  <span class="hdr">DX11242-1                </span> → <span class="err">ERREUR</span>
+
+  <span class="num">2</span> logger(s) : <span class="num">1</span> réussi(s), <span class="num">1</span> échoué(s).</code></pre>
+
+      <h4>Verbose mode output (<code>--verbose</code>)</h4>
+<pre><code>[2026-04-28 09:00:00 UTC] Scan du réseau (2 s)...
+
+--- DX11252-2 (192.168.2.1) ---
+Connexion à 'DX11252-2'...
+Connecté. Type : Gen2 (engine::Download + MF4)
+Téléchargement de <span class="num">2</span> mesure(s)...
+  → Mesure 0
+  <span class="ok">✓  52466504 / 52466504 octets</span>
+  [patch_dlc] <span class="num">11</span> fichier(s) corrigé(s), <span class="num">13573945</span> champ(s) DLC
+  ...</code></pre>
+
+      <h4>Cron usage</h4>
+<pre><code><span class="cmt"># Download every 10 minutes, append to log</span>
+*/10 * * * * /path/to/xoraya-cli collect --dest /data/logs \
+  --delete-after-download >> /var/log/xoraya.log 2>&amp;1</code></pre>
+
+      <p>Return code <code>0</code> = all loggers succeeded (or none found).
+      Return code <code>1</code> = at least one logger failed.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Output files ──────────────────────────────────────────────────────── -->
+<section id="files">
+  <h2>Output files &amp; naming</h2>
+
+  <p>Files produced by <code>download</code> and <code>collect</code> follow this scheme:</p>
+
+<pre><code>{logger_name}_{YYYYMMDD}_{HHmmss}-{YYYYMMDD}_{HHmmss}[_snapshot]_{NNNN}.mf4</code></pre>
+
+  <table>
+    <tr><th>Part</th><th>Format</th><th>Example</th></tr>
+    <tr><td><code>logger_name</code></td><td>Alias from <code>GetName()</code> after connection</td><td><code>DX11252-2</code></td></tr>
+    <tr><td>start date/time</td><td><code>YYYYMMDD_HHmmss</code> (UTC)</td><td><code>20260423_130040</code></td></tr>
+    <tr><td>end date/time</td><td><code>YYYYMMDD_HHmmss</code> (UTC)</td><td><code>20260423_131920</code></td></tr>
+    <tr><td><code>_snapshot</code></td><td>Present only for Snapshot measurements</td><td><code>_snapshot</code></td></tr>
+    <tr><td><code>_NNNN</code></td><td>4-digit split counter (always present)</td><td><code>_0001</code></td></tr>
+    <tr><td>extension</td><td>Always <code>.mf4</code> for Gen2</td><td><code>.mf4</code></td></tr>
+  </table>
+
+  <h3>Examples</h3>
+<pre><code><span class="cmt"># Single-file measurement (still has _0001)</span>
+DX11252-2_20260423_130040-20260423_131920_0001.mf4
+
+<span class="cmt"># 11-file split measurement</span>
+DX11252-2_20260423_130040-20260423_151210_0001.mf4
+DX11252-2_20260423_130040-20260423_151210_0002.mf4
+...
+DX11252-2_20260423_130040-20260423_151210_0011.mf4
+
+<span class="cmt"># Snapshot</span>
+DX11252-2_20260423_150000-20260423_150230_snapshot_0001.mf4</code></pre>
+
+  <p>
+    The split counter <code>_0001</code> is <strong>always present</strong>, even for
+    measurements that fit in a single file. This is standard <code>WriterMf4</code>
+    filter behavior. Splits occur at <strong>50 MB</strong> (52 428 800 bytes).
+  </p>
+
+  <div class="callout warn">
+    <strong>Gen3 / DataCubeNSeries</strong>
+    Gen3 downloads use <code>engine::Copy</code> (SelfOwned mode), which applies its own
+    internal naming scheme. The CLI does not control Gen3 filenames.
+  </div>
+</section>
+
+<!-- ── Architecture ──────────────────────────────────────────────────────── -->
+<section id="architecture">
+  <h2>Architecture</h2>
+
+  <p>
+    The CLI is structured as a <strong>thin dispatcher</strong> in <code>main.cpp</code>
+    over three independent modules. There is no shared state between commands — each
+    creates its own SDK connection and disconnects when done.
+  </p>
+
+  <div class="arch-box">
+    <div class="arch-row">
+      <div class="box accent">
+        <span class="label">main.cpp</span>
+        <span class="sub">CLI parsing · command dispatch</span>
+      </div>
+    </div>
+    <div class="arch-row">
+      <span class="arrow">↓</span>
+    </div>
+    <div class="arch-row">
+      <div class="box">
+        <span class="label">scanner.cpp</span>
+        <span class="sub">scan_network() · CScansCommand</span>
+      </div>
+      <div class="box">
+        <span class="label">downloader.cpp</span>
+        <span class="sub">cmd_list · cmd_download · cmd_delete<br>download_gen2 · copy_gen3 · patch_mf4_dlc</span>
+      </div>
+      <div class="box">
+        <span class="label">collector.cpp</span>
+        <span class="sub">cmd_collect · run_pass<br>→ calls scan_network + cmd_download</span>
+      </div>
+    </div>
+    <div class="arch-row">
+      <span class="arrow">↓</span>
+    </div>
+    <div class="arch-row">
+      <div class="box dim">
+        <span class="label">libxorayasdk.so</span>
+        <span class="sub">X2E Linux SDK — system library</span>
+      </div>
+    </div>
+  </div>
+
+  <h3>Source files</h3>
+  <table>
+    <tr><th>File</th><th>Responsibility</th></tr>
+    <tr><td><code>main.cpp</code></td><td>Argument parsing, <code>--help</code>, command dispatch</td></tr>
+    <tr><td><code>scanner.hpp/cpp</code></td><td>Network scan via <code>CScansCommand</code> and <code>CLoggerBCAnswerMsg</code></td></tr>
+    <tr><td><code>downloader.hpp/cpp</code></td><td>All download/list/delete logic; Gen2/Gen3 dispatch; DLC patch</td></tr>
+    <tr><td><code>collector.hpp/cpp</code></td><td>Multi-logger orchestration; loop; verbose/simple output modes</td></tr>
+    <tr><td><code>mf4_patch_dlc.py</code></td><td>Standalone Python validation tool for the DLC bug (not part of the build)</td></tr>
+    <tr><td><code>Makefile</code></td><td>Build rules; tracks dependencies via <code>-MMD -MP</code></td></tr>
+  </table>
+</section>
+
+<!-- ── Download flow ─────────────────────────────────────────────────────── -->
+<section id="download-flow">
+  <h2>Download flow (Gen2)</h2>
+
+  <p>
+    The Gen2 path uses <code>HddGetMeasurement</code> with a polling loop, mirroring the
+    original Windows <code>XorayaConnection::onDownloadEntries()</code> logic.
+    The sequence for each measurement:
+  </p>
+
+  <div class="flow">
+    <div class="flow-step"><p><strong>HddDirMeasurement</strong> — read the measurement list from the logger HDD. <code>enableShadow()</code> is called to merge <em>stream_queue</em> and <em>default_queue</em> into a single measurement entry.</p></div>
+    <div class="flow-step"><p><strong>WriterMf4 filter created once</strong> — <code>MsgFilterFactory::Create(WriterMf4)</code> and attached to the <code>LoggerDataRecv</code> before the measurement loop. Properties: <code>MaxFileSize=52428800</code>, <code>SplitOnMaxSize=true</code>, <code>Extension=mf4</code>.</p></div>
+    <div class="flow-step"><p><strong>Per-measurement: update Filename</strong> — <code>SetProperty("Filename", base_path)</code> where <code>base_path = dest_dir/logger_YYYYMMDD_HHmmss-YYYYMMDD_HHmmss</code>. WriterMf4 appends <code>_0001.mf4</code>, <code>_0002.mf4</code>, etc.</p></div>
+    <div class="flow-step"><p><strong>HddGetMeasurement</strong> — <code>ctrl->DoCmd(cmdGet)</code> starts the transfer.</p></div>
+    <div class="flow-step"><p><strong>Polling loop (200 ms)</strong> — waits until both <code>IsReceiving() == false</code> (network transfer complete) and <code>GetCnt(CId_IsDataConsuming) == 0</code> (FileWriterMdf has closed all files). <code>g_abort</code> is checked every iteration; if set, <code>cmd::HddStop</code> is sent.</p></div>
+    <div class="flow-step"><p><strong>callAgain() / finalizeShadow()</strong> — if <code>cmdGet.callAgain()</code> returns true, the transfer loop repeats from step 4 to fetch the next chunk (shadow segment). When it returns false and <code>HasShadow()</code> is true, <code>finalizeShadow()</code> is called.</p></div>
+    <div class="flow-step"><p><strong>DLC patch</strong> — <code>patch_mf4_dlc()</code> is called on every <code>_NNNN.mf4</code> file in <code>dest_dir</code> matching this measurement's base filename. Files are loaded into memory, patched, and rewritten (see DLC section).</p></div>
+    <div class="flow-step"><p><strong>Optional deletion</strong> — if <code>--delete-after-download</code>, <code>delete_gen2()</code> is called with the list of successfully downloaded measurements.</p></div>
+  </div>
+
+  <h3>Gen3 path</h3>
+  <p>
+    Gen3 devices use <code>engine::Copy</code> (SelfOwned mode). The CLI sets the target
+    path and calls <code>cp.Run()</code> + <code>cp.WaitForEndOfCopy()</code>. Progress is
+    reported via a <code>CopyProgress</code> callback. No DLC patch is applied to Gen3
+    files.
+  </p>
+</section>
+
+<!-- ── DLC bug & fix ─────────────────────────────────────────────────────── -->
+<section id="dlc-bug">
+  <h2>DLC bug &amp; fix</h2>
+
+  <div class="callout warn">
+    <strong>Affected SDK: libxorayasdk 1.00.0046</strong>
+    All MF4 files produced by this SDK version have a zeroed DLC field in every fixed
+    CAN bus-event record. The fix is applied automatically after each download.
+  </div>
+
+  <h3>The bug</h3>
+  <p>
+    <code>libxorayasdk 1.00.0046</code>'s internal <code>X2eToMdfConverter</code> class
+    writes <code>0x00</code> at byte 4 of <code>CAN_DataFrame</code> (the <code>DLC_field</code>
+    read by the CAN viewer) for <strong>every fixed bus-event record</strong>. The correct
+    DLC value is simultaneously written at byte 5 (<code>flag2</code>) by the same code
+    path. VLSD records (the actual CAN payload data) are unaffected.
+  </p>
+
+  <h3>Fixed record layout</h3>
+  <table>
+    <tr><th>Offset</th><th>Size</th><th>Field</th><th>Note</th></tr>
+    <tr><td>0–1</td><td>2</td><td>rec_id</td><td>One of {1, 3, 5, 7} for fixed CGs</td></tr>
+    <tr><td>2–9</td><td>8</td><td>timestamp</td><td>100 ns ticks since Unix epoch</td></tr>
+    <tr><td>10</td><td>1</td><td>Asynchronous</td><td>flag byte</td></tr>
+    <tr><td>11–14</td><td>4</td><td>CAN_DataFrame[0..3]</td><td>CAN ID bytes</td></tr>
+    <tr><td><strong>15</strong></td><td>1</td><td><strong>DLC_field</strong></td><td><span class="tag red">BUG: always 0x00</span> ← patch target</td></tr>
+    <tr><td><strong>16</strong></td><td>1</td><td><strong>flag2</strong></td><td><span class="tag grn">correct DLC</span> ← patch source</td></tr>
+    <tr><td>17–29</td><td>13</td><td>CAN_DataFrame[6..18]</td><td>rest of frame</td></tr>
+  </table>
+
+  <h3>The fix — <code>patch_mf4_dlc()</code></h3>
+  <p>
+    Implemented in <code>downloader.cpp</code>. Called automatically after every Gen2
+    measurement download, once <code>CId_IsDataConsuming</code> returns to zero
+    (guaranteeing all MF4 files are closed).
+  </p>
+
+  <div class="flow">
+    <div class="flow-step"><p>Load the entire file into a <code>std::vector&lt;uint8_t&gt;</code></p></div>
+    <div class="flow-step"><p>Validate the file header: first 8 bytes must be <code>"MDF&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"</code>. The MF4 ID block is the only block that does <em>not</em> carry a <code>##</code> prefix — all other blocks (<code>##HD</code>, <code>##DG</code>, <code>##CG</code>, <code>##DT</code>, <code>##DL</code>) do.</p></div>
+    <div class="flow-step"><p>Parse <code>##HD</code> (always at offset 64) → <code>##DG</code> chain; read <code>dg_rec_id_size</code></p></div>
+    <div class="flow-step"><p>Walk the CG chain; build a table: <code>rec_id → {is_vlsd, data_bytes}</code></p></div>
+    <div class="flow-step"><p>Skip DGs that contain no fixed CGs with rec_ids in {1, 3, 5, 7}</p></div>
+    <div class="flow-step"><p>Collect DT payload spans (directly or via <code>##DL</code> chain)</p></div>
+    <div class="flow-step"><p>For each fixed record where <code>buf[pos+15] == 0</code> and <code>buf[pos+16] != 0</code>: set <code>buf[pos+15] = buf[pos+16]</code></p></div>
+    <div class="flow-step"><p>If any patches were made: rewrite the full buffer to disk (single <code>fwrite</code>)</p></div>
+  </div>
+
+  <p>
+    The condition <code>byte4 == 0 &amp;&amp; byte5 != 0</code> is intentional: it
+    skips already-correct files (from the Windows SDK), CAN error frames (both bytes
+    zero), and avoids overwriting a correct value. Running the patch on an already-patched
+    file is safe and produces 0 patches.
+  </p>
+
+  <h3>Scale</h3>
+  <p>
+    A typical 50 MB split file from an 18-minute measurement contains
+    <strong>~1 233 995 fixed records</strong>. All have <code>DLC_field = 0x00</code>,
+    all are patched. The patch runs in well under 1 second per file (in-memory sequential
+    scan + single write).
+  </p>
+
+  <h3>Python validation tool</h3>
+  <p>
+    <code>mf4_patch_dlc.py</code> was used to confirm the hypothesis before C++
+    integration. It produces a patched copy (original untouched), validates MF4
+    structure, and spot-checks 500 patches. Useful for ad-hoc validation:
+  </p>
+<pre><code><span class="cmd">python3 mf4_patch_dlc.py input.mf4 output_patched.mf4</span></code></pre>
+</section>
+
+<!-- ── SDK notes ─────────────────────────────────────────────────────────── -->
+<section id="sdk">
+  <h2>SDK notes</h2>
+
+  <h3>Key SDK types</h3>
+  <table>
+    <tr><th>Type</th><th>Used for</th></tr>
+    <tr><td><code>LoggerCtrl</code></td><td>Smart pointer to the logger controller interface</td></tr>
+    <tr><td><code>LoggerDataRecv</code></td><td>Message receiver — owns the filter chain</td></tr>
+    <tr><td><code>LoggerDataRecvFilter</code></td><td>A single output filter (e.g. <code>WriterMf4</code>)</td></tr>
+    <tr><td><code>hdd::MeasurementList</code></td><td>Gen2 measurement list from <code>HddDirMeasurement</code></td></tr>
+    <tr><td><code>hdd::FinalMeasurementList</code></td><td>Gen3 measurement list from <code>HddDirFinalMeasurement</code></td></tr>
+    <tr><td><code>HiResDateTime</code></td><td>Timestamp wrapper; <code>getTime()</code> = 100 ns since Unix epoch</td></tr>
+    <tr><td><code>timestampHiResLG_t</code></td><td><code>uint64_t</code>, 100 ns ticks since Unix epoch</td></tr>
+    <tr><td><code>x2e::X2Error</code></td><td>Error from <code>GetName()</code>; compare with <code>X2Error::NoError()</code></td></tr>
+    <tr><td><code>x2e::Util::ErrorHdl</code></td><td>Error from <code>DoCmd()</code>/<code>Connect()</code>; check with <code>.IsNone()</code></td></tr>
+  </table>
+
+  <div class="callout warn">
+    <strong>Note</strong>
+    <code>X2Error</code> and <code>ErrorHdl</code> are different types with different
+    APIs. Do not mix them.
+  </div>
+
+  <h3>Windows → Linux port summary</h3>
+  <table>
+    <tr><th>Original (Qt/Windows)</th><th>CLI equivalent</th></tr>
+    <tr><td><code>QString</code> / <code>QVector</code></td><td><code>std::string</code> / <code>std::vector</code></td></tr>
+    <tr><td><code>QDateTime::toString("yyyyMMdd_hhmmss")</code></td><td><code>gmtime_r</code> + <code>strftime</code></td></tr>
+    <tr><td><code>emit signal(...)</code></td><td>Direct function call / return value</td></tr>
+    <tr><td><code>qDebug()</code></td><td><code>fprintf(stderr, ...)</code></td></tr>
+    <tr><td><code>X2E_XorayaWin32_DYN_LINKING_AUTO</code></td><td>Not defined; <code>-lxorayasdk</code> in Makefile</td></tr>
+    <tr><td><code>HddGetMeasurement</code> + <code>callAgain()</code> loop</td><td>Same API — identical sequence</td></tr>
+    <tr><td><code>MsgFilterFactory::WriterMf4</code> properties</td><td>Identical property names and values</td></tr>
+  </table>
+</section>
+
+<!-- ── Troubleshooting ───────────────────────────────────────────────────── -->
+<section id="troubleshooting">
+  <h2>Troubleshooting</h2>
+
+  <h3>Connection errors</h3>
+
+  <h4>Connection failed / Error Connection/Invalid</h4>
+  <table>
+    <tr><th>Cause</th><th>Action</th></tr>
+    <tr><td>Logger not reachable</td><td><code>ping &lt;ip&gt;</code></td></tr>
+    <tr><td>Previous session killed with SIGKILL</td><td>Wait 30–60 s for the SDK timeout to expire, then retry</td></tr>
+    <tr><td>Logger addressed by name after failed session</td><td>Try by IP: <code>./xoraya-cli download 192.168.2.1 ...</code></td></tr>
+  </table>
+
+  <h4>Logger not found by scan</h4>
+  <p>
+    The scan uses UDP broadcast and cannot cross routers. The host and loggers must be on
+    the same L2 subnet. Check firewall rules if they are on the same subnet but not
+    responding.
+  </p>
+
+  <h3>Download errors</h3>
+
+  <h4>HddDirMeasurement échoué</h4>
+  <p>The SDK could not read the measurement directory. Check that the logger's HDD is
+  accessible and that <code>stop_logging_if_needed</code> succeeded.</p>
+
+  <h4>Download terminé avec état 3 (Abort)</h4>
+  <p>State 3 is normal when Ctrl+C is pressed. If it appears without user intervention,
+  it indicates a network interruption or logger reset during transfer.</p>
+
+  <h3>Build errors</h3>
+
+  <h4>fatal error: x2e/loggerclient.h: No such file</h4>
+<pre><code><span class="cmd">ls /usr/include/x2e/loggerclient.h</span>   <span class="cmt"># must exist</span></code></pre>
+  <p>Install the X2E Linux SDK headers package.</p>
+
+  <h4>cannot find -lxorayasdk</h4>
+<pre><code><span class="cmd">ls /usr/lib/libxorayasdk.so</span>
+<span class="cmd">ldconfig -p | grep xorayasdk</span></code></pre>
+  <p>Install the X2E Linux SDK library package, then run <code>ldconfig</code>.</p>
+
+  <h3>Known limitations</h3>
+  <table>
+    <tr><th>Limitation</th><th>Detail</th></tr>
+    <tr><td>Gen1 not supported</td><td>Appears in <code>scan</code> but cannot be downloaded or deleted</td></tr>
+    <tr><td>Scan timeout fixed</td><td>Always 2 seconds; not configurable</td></tr>
+    <tr><td>No deduplication</td><td>The same measurement is re-downloaded on every pass unless <code>--delete-after-download</code> is used</td></tr>
+    <tr><td><code>--device</code> accepts IP only</td><td>Use <code>scan</code> to find the IP for a given logger name</td></tr>
+    <tr><td>No parallel downloads</td><td>Loggers are processed sequentially in <code>collect</code></td></tr>
+    <tr><td>Ctrl+C leaves partial file</td><td>The incomplete file for the aborted measurement is not cleaned up</td></tr>
+    <tr><td>Extra AT blocks in MF4</td><td>Linux SDK inserts two extra AT blocks not present in Windows SDK output. They do not prevent file opening once the DLC patch is applied.</td></tr>
+    <tr><td>DLC patch is Gen2-only</td><td><code>patch_mf4_dlc()</code> is not called for Gen3 files</td></tr>
+  </table>
+</section>
+
+</main>
+
+<script>
+// Highlight active sidebar link on scroll
+(function() {
+  const links = document.querySelectorAll('nav a[href^="#"]');
+  const sections = Array.from(links).map(l => document.querySelector(l.getAttribute('href')));
+
+  function update() {
+    let active = null;
+    for (const s of sections) {
+      if (s && s.getBoundingClientRect().top <= 80) active = s;
+    }
+    links.forEach(l => {
+      const target = document.querySelector(l.getAttribute('href'));
+      l.classList.toggle('active', target === active);
+    });
+  }
+
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+</script>
+
+</body>
+</html>
