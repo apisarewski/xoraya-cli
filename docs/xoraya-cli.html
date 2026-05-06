@@ -295,6 +295,9 @@
     <li><a href="#dlc-bug">DLC bug &amp; fix</a></li>
     <li><a href="#sdk">SDK notes</a></li>
 
+    <li class="section">Automation</li>
+    <li><a href="#service">systemd service</a></li>
+
     <li class="section">Reference</li>
     <li><a href="#troubleshooting">Troubleshooting</a></li>
   </ul>
@@ -399,19 +402,19 @@
       all loggers that respond.</p>
 
       <h4>Example output</h4>
-<pre><code><span class="hdr">Nom                       IP               Firmware             État               Type</span>
+<pre><code><span class="hdr">Name                      IP               Firmware             State              Type</span>
 <span class="dim">-------------------------  ----------------  --------------------  ------------------  ----------</span>
 <span class="ok">DX11252-2                 192.168.2.1      4.0b.0022            Multi-Logging       Gen2 (N4000)</span>
 <span class="ok">DX11242-1                 192.168.2.5      4.0b.0022            Stopped             Gen2 (N4000)</span>
 
-<span class="num">2</span> logger(s) trouvé(s).</code></pre>
+<span class="num">2</span> logger(s) found.</code></pre>
 
       <table>
         <tr><th>Field</th><th>Description</th></tr>
-        <tr><td><strong>Nom</strong></td><td>Alias name — use this as <code>&lt;device&gt;</code> in other commands</td></tr>
+        <tr><td><strong>Name</strong></td><td>Alias name — use this as <code>&lt;device&gt;</code> in other commands</td></tr>
         <tr><td><strong>IP</strong></td><td>IPv4 address — also accepted as <code>&lt;device&gt;</code></td></tr>
         <tr><td><strong>Firmware</strong></td><td>Logger firmware version string</td></tr>
-        <tr><td><strong>État</strong></td><td>Current state: <em>Multi-Logging</em>, <em>Stopped</em>, etc.</td></tr>
+        <tr><td><strong>State</strong></td><td>Current state: <em>Multi-Logging</em>, <em>Stopped</em>, etc.</td></tr>
         <tr><td><strong>Type</strong></td><td>Device family (Gen2, DataCube, DLNcluster, Gen3…)</td></tr>
       </table>
 
@@ -440,9 +443,9 @@
       measurement directory, prints the table, then restarts logging.</p>
 
       <h4>Example output</h4>
-<pre><code>Logger : DX11252-2  (<span class="num">3</span> mesure(s))
+<pre><code>Logger: DX11252-2  (<span class="num">3</span> measurement(s))
 
- <span class="hdr">  #  Début (UTC)          Fin (UTC)            Messages     Taille  Type</span>
+ <span class="hdr">  #  Start (UTC)          End (UTC)            Messages     Size    Type</span>
  <span class="dim">----------------------------------------------------------------------------------</span>
    <span class="num">0</span>  2026-04-23 13:00:40  2026-04-23 13:19:20   1233995   <span class="num">52.4 MB</span>  Main
    <span class="num">1</span>  2026-04-23 14:00:00  2026-04-23 14:30:00    567120   <span class="num">24.1 MB</span>  Main
@@ -451,9 +454,9 @@
       <table>
         <tr><th>Field</th><th>Description</th></tr>
         <tr><td><strong>#</strong></td><td>Zero-based index — used as <code>N</code> in <code>download</code> and <code>delete</code></td></tr>
-        <tr><td><strong>Début / Fin</strong></td><td>UTC start/end timestamps of the measurement</td></tr>
+        <tr><td><strong>Start / End</strong></td><td>UTC start/end timestamps of the measurement</td></tr>
         <tr><td><strong>Messages</strong></td><td>Number of log messages recorded</td></tr>
-        <tr><td><strong>Taille</strong></td><td>Uncompressed data size on the HDD</td></tr>
+        <tr><td><strong>Size</strong></td><td>Uncompressed data size on the HDD</td></tr>
         <tr><td><strong>Type</strong></td><td><em>Main</em> (continuous recording) or <em>Snapshot</em> (triggered capture)</td></tr>
       </table>
     </div>
@@ -492,22 +495,22 @@
 <span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs 2 --delete-after-download</span></code></pre>
 
       <h4>Example output (Gen2)</h4>
-<pre><code>Connexion à 'DX11252-2'...
-Connecté. Type : Gen2 (engine::Download + MF4)
-Téléchargement de <span class="num">3</span> mesure(s)...
+<pre><code>Connecting to 'DX11252-2'...
+Connected. Type: Gen2 (engine::Download + MF4)
+Downloading <span class="num">3</span> measurement(s)...
 
-  → Mesure 0
+  → Measurement 0
    <span class="num">45.2</span>%  <span class="num">12</span> Mbit/s
-  <span class="ok">✓  52466504 / 52466504 octets</span>
-  [patch_dlc] <span class="num">11</span> fichier(s) corrigé(s), <span class="num">13573945</span> champ(s) DLC
+  <span class="ok">✓  52466504 / 52466504 bytes</span>
+  [patch_dlc] <span class="num">11</span> file(s) patched, <span class="num">13573945</span> DLC field(s)
 
-  → Mesure 1
-  <span class="ok">✓  24100000 / 24100000 octets</span>
-  [patch_dlc] <span class="num">5</span> fichier(s) corrigé(s), <span class="num">5894321</span> champ(s) DLC
+  → Measurement 1
+  <span class="ok">✓  24100000 / 24100000 bytes</span>
+  [patch_dlc] <span class="num">5</span> file(s) patched, <span class="num">5894321</span> DLC field(s)
 
-  Vitesse moyenne globale : <span class="num">10</span> Mbit/s
+  Overall average speed: <span class="num">10</span> Mbit/s
 
-Fichiers disponibles dans : /tmp/logs</code></pre>
+Files available in: /tmp/logs</code></pre>
 
       <div class="callout ok">
         <strong>Non-destructive by default</strong>
@@ -542,8 +545,8 @@ Fichiers disponibles dans : /tmp/logs</code></pre>
       </div>
 
       <h4>Example output</h4>
-<pre><code>⚠  Suppression de la mesure <span class="num">2</span> sur 'DX11252-2'...
-   <span class="ok">Mesure 2 supprimée.</span></code></pre>
+<pre><code>⚠  Deleting measurement <span class="num">2</span> from 'DX11252-2'...
+   <span class="ok">Measurement 2 deleted.</span></code></pre>
 
       <p>On <strong>Gen3</strong> devices, deletion is performed by time range
       (begin/end timestamps of the measurement) via
@@ -579,6 +582,8 @@ Fichiers disponibles dans : /tmp/logs</code></pre>
             <td>Show what would happen without performing any transfer</td></tr>
         <tr><td><code>--verbose</code></td><td>off</td>
             <td>Print full per-measurement progress (same output as <code>download</code>)</td></tr>
+        <tr><td><code>--stop-logging</code></td><td>off</td>
+            <td>Stop the logger's recording before download, restart it afterwards</td></tr>
       </table>
 
       <h4>Examples</h4>
@@ -598,22 +603,22 @@ Fichiers disponibles dans : /tmp/logs</code></pre>
 <span class="cmd">./xoraya-cli collect --dry-run --verbose</span></code></pre>
 
       <h4>Simple mode output (default)</h4>
-<pre><code>[2026-04-28 09:00:00 UTC] Scan du réseau (2 s)...
+<pre><code>[2026-04-28 09:00:00 UTC] Scanning network (2 s)...
   <span class="hdr">DX11252-2                </span> → <span class="ok">OK</span>
-  <span class="hdr">DX11242-1                </span> → <span class="err">ERREUR</span>
+  <span class="hdr">DX11242-1                </span> → <span class="err">ERROR</span>
 
-  <span class="num">2</span> logger(s) : <span class="num">1</span> réussi(s), <span class="num">1</span> échoué(s).</code></pre>
+  <span class="num">2</span> logger(s): <span class="num">1</span> succeeded, <span class="num">1</span> failed.</code></pre>
 
       <h4>Verbose mode output (<code>--verbose</code>)</h4>
-<pre><code>[2026-04-28 09:00:00 UTC] Scan du réseau (2 s)...
+<pre><code>[2026-04-28 09:00:00 UTC] Scanning network (2 s)...
 
 --- DX11252-2 (192.168.2.1) ---
-Connexion à 'DX11252-2'...
-Connecté. Type : Gen2 (engine::Download + MF4)
-Téléchargement de <span class="num">2</span> mesure(s)...
-  → Mesure 0
-  <span class="ok">✓  52466504 / 52466504 octets</span>
-  [patch_dlc] <span class="num">11</span> fichier(s) corrigé(s), <span class="num">13573945</span> champ(s) DLC
+Connecting to 'DX11252-2'...
+Connected. Type: Gen2 (engine::Download + MF4)
+Downloading <span class="num">2</span> measurement(s)...
+  → Measurement 0
+  <span class="ok">✓  52466504 / 52466504 bytes</span>
+  [patch_dlc] <span class="num">11</span> file(s) patched, <span class="num">13573945</span> DLC field(s)
   ...</code></pre>
 
       <h4>Cron usage</h4>
@@ -868,6 +873,68 @@ DX11252-2_20260423_150000-20260423_150230_snapshot_0001.mf4</code></pre>
   </table>
 </section>
 
+<!-- ── systemd service ───────────────────────────────────────────────────── -->
+<section id="service">
+  <h2>Automation: systemd service</h2>
+
+  <p>
+    The repository ships a ready-to-use systemd unit that runs
+    <code>collect --interval --delete-after-download</code> continuously from boot,
+    re-scanning every 10 seconds (configurable).
+  </p>
+
+  <h3>Files</h3>
+  <table>
+    <tr><th>File</th><th>Purpose</th></tr>
+    <tr><td><code>xoraya-collect.conf.example</code></td><td>Copy to <code>xoraya-collect.conf</code> and edit</td></tr>
+    <tr><td><code>xoraya-collect.service</code></td><td>systemd unit — copy to <code>/etc/systemd/system/</code></td></tr>
+    <tr><td><code>docs/install-service.md</code></td><td>Full installation instructions</td></tr>
+  </table>
+
+  <h3>Config file (<code>xoraya-collect.conf</code>)</h3>
+<pre><code><span class="cmt"># Destination directory for downloaded MF4 files</span>
+DEST=/home/Dexterlogs
+
+<span class="cmt"># Re-scan interval in seconds (minimum 1)</span>
+INTERVAL=10</code></pre>
+
+  <p>Edit this file with no <code>sudo</code> required. Changes take effect after
+  <code>sudo systemctl restart xoraya-collect</code>.</p>
+
+  <h3>Service unit (excerpt)</h3>
+<pre><code>[Unit]
+Description=Xoraya data collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=alexander
+EnvironmentFile=/home/alexander/.../xoraya-collect.conf
+ExecStart=/usr/local/bin/xoraya-cli collect \
+          --dest ${DEST} --interval ${INTERVAL} --delete-after-download
+Restart=on-failure
+RestartSec=5</code></pre>
+
+  <h3>Installation (one-time)</h3>
+  <div class="flow">
+    <div class="flow-step"><p>Build and install the binary: <code>make &amp;&amp; sudo cp xoraya-cli /usr/local/bin/xoraya-cli</code></p></div>
+    <div class="flow-step"><p>Create config: <code>cp xoraya-collect.conf.example xoraya-collect.conf</code> — edit <code>DEST</code> and <code>INTERVAL</code></p></div>
+    <div class="flow-step"><p>Install service: <code>sudo cp xoraya-collect.service /etc/systemd/system/</code></p></div>
+    <div class="flow-step"><p>Enable and start: <code>sudo systemctl daemon-reload &amp;&amp; sudo systemctl enable --now xoraya-collect</code></p></div>
+  </div>
+
+  <h3>Operations</h3>
+  <table>
+    <tr><th>Task</th><th>Command</th></tr>
+    <tr><td>Live logs</td><td><code>journalctl -u xoraya-collect -f</code></td></tr>
+    <tr><td>Stop</td><td><code>sudo systemctl stop xoraya-collect</code></td></tr>
+    <tr><td>Restart after config change</td><td><code>sudo systemctl restart xoraya-collect</code></td></tr>
+    <tr><td>Update binary after rebuild</td><td><code>make &amp;&amp; sudo cp xoraya-cli /usr/local/bin/xoraya-cli &amp;&amp; sudo systemctl restart xoraya-collect</code></td></tr>
+    <tr><td>Disable auto-start</td><td><code>sudo systemctl disable xoraya-collect</code></td></tr>
+  </table>
+</section>
+
 <!-- ── Troubleshooting ───────────────────────────────────────────────────── -->
 <section id="troubleshooting">
   <h2>Troubleshooting</h2>
@@ -891,11 +958,11 @@ DX11252-2_20260423_150000-20260423_150230_snapshot_0001.mf4</code></pre>
 
   <h3>Download errors</h3>
 
-  <h4>HddDirMeasurement échoué</h4>
+  <h4>HddDirMeasurement failed</h4>
   <p>The SDK could not read the measurement directory. Check that the logger's HDD is
   accessible and that <code>stop_logging_if_needed</code> succeeded.</p>
 
-  <h4>Download terminé avec état 3 (Abort)</h4>
+  <h4>Download finished with state 3 (Abort)</h4>
   <p>State 3 is normal when Ctrl+C is pressed. If it appears without user intervention,
   it indicates a network interruption or logger reset during transfer.</p>
 
