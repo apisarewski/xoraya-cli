@@ -42,12 +42,17 @@ sudo cp xoraya-collect.service /etc/systemd/system/xoraya-collect.service
 sudo systemctl daemon-reload
 ```
 
+`daemon-reload` tells systemd to re-read all service files from disk. You must run it whenever you add or modify a `.service` file, otherwise systemd keeps using the old version it has cached in memory.
+
 ### 4. Enable and start
 
 ```bash
 sudo systemctl enable xoraya-collect   # auto-start at boot
 sudo systemctl start xoraya-collect    # start now
 ```
+
+- `enable` registers the service to start automatically every time the machine boots. It does **not** start it immediately.
+- `start` starts it right now, in this session. Together, both commands mean the service is running now and will keep running after every reboot.
 
 ---
 
