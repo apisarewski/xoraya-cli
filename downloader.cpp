@@ -289,14 +289,20 @@ static int patch_mf4_dlc(const std::string& path)
 
 /**
  * Stops logging if the logger is currently recording.
+ * Saves the active DataSink targets before stopping so they can be
+ * restored by restart_logging() — the targets list is empty after a stop.
  *
- * @param ctrl          Connected controller
- * @param had_to_stop   [out] true if logging was actually stopped
- * @return              true on success (or already stopped), false on SDK error
+ * @param ctrl           Connected controller
+ * @param had_to_stop    [out] true if logging was actually stopped
+ * @param saved_targets  [out] bitmask of active DataSink types before the stop
+ * @return               true on success (or already stopped), false on SDK error
  */
-static bool stop_logging_if_needed(LoggerCtrl& ctrl, bool& had_to_stop)
+static bool stop_logging_if_needed(LoggerCtrl& ctrl,
+                                   bool& had_to_stop,
+                                   uint32_t& saved_targets)
 {
-    had_to_stop = false;
+    had_to_stop    = false;
+    saved_targets  = 0;
 
     cmd::LogState logStateCmd;
     auto err = ctrl->DoCmd(logStateCmd);
@@ -309,6 +315,11 @@ static bool stop_logging_if_needed(LoggerCtrl& ctrl, bool& had_to_stop)
     // Already stopped → nothing to do
     if (logStateCmd.isStopped() == XBool::True) {
         return true;
+    }
+
+    // Save active targets BEFORE stopping — they are unavailable afterwards
+    for (const auto& sink : logStateCmd.DataSink()) {
+        saved_targets += sink.Type();
     }
 
     fprintf(stderr, "Stopping logging...\n");
@@ -329,37 +340,18 @@ static bool stop_logging_if_needed(LoggerCtrl& ctrl, bool& had_to_stop)
 }
 
 /**
- * Restarts logging with the same targets as before the stop.
- * Mirrors XorayaConnection::startLogging().
+ * Restarts HDD logging after a stop_logging_if_needed() call.
+ * Mirrors the stop: only LoggerStorage is restarted since that is the
+ * only target we stop (LogStop::Set(LoggerStorage)).
  *
  * @param ctrl  Connected controller
  */
-static void restart_logging(LoggerCtrl& ctrl)
+static void restart_logging(LoggerCtrl& ctrl, uint32_t /*saved_targets*/)
 {
-    // Re-read current state to identify active data sinks
-    cmd::LogState stateCmd;
-    auto err = ctrl->DoCmd(stateCmd);
-    if (!err.IsNone()) {
-        fprintf(stderr, "Warning: cannot re-read state to restart logging: %s\n",
-                err.AsString().c_str());
-        return;
-    }
-
-    if (stateCmd.isStopped() != XBool::True) {
-        return; // already logging, nothing to do
-    }
-
-    // Accumulate targets from the DataSink (uint32_t bitmask)
-    uint32_t targets = 0;
-    for (const auto& sink : stateCmd.DataSink()) {
-        targets += sink.Type();
-    }
-
     fprintf(stderr, "Restarting logging...\n");
-    // Intermediate variable to avoid the "most vexing parse"
-    cmd::types::DataTarget target_mask(targets);
-    cmd::LogStart cmdStart(target_mask);
-    err = ctrl->DoCmd(cmdStart);
+    cmd::types::DataTarget target(cmd::types::DataTarget::TypeId::LoggerStorage);
+    cmd::LogStart cmdStart(target);
+    auto err = ctrl->DoCmd(cmdStart);
     if (!err.IsNone()) {
         fprintf(stderr, "Warning: failed to restart logging: %s\n",
                 err.AsString().c_str());
@@ -372,10 +364,9 @@ static void restart_logging(LoggerCtrl& ctrl)
 
 int cmd_list(const std::string& device)
 {
-    // 1. Créer le contrôleur (LCT_Universal → supporte Gen2 et Gen3)
     auto ctrl = LoggerClient::CreateCtrl(LoggerClient::LCT_Universal);
 
-    // 2. Connexion
+    // 2. Connect
     fprintf(stderr, "Connecting to '%s'...\n", device.c_str());
     auto err = ctrl->Connect(device);
     if (!err.IsNone()) {
@@ -386,8 +377,9 @@ int cmd_list(const std::string& device)
     fprintf(stderr, "Connected.\n");
 
     // 3. Stop logging if needed
-    bool had_to_stop = false;
-    if (!stop_logging_if_needed(ctrl, had_to_stop)) {
+    bool     had_to_stop   = false;
+    uint32_t saved_targets = 0;
+    if (!stop_logging_if_needed(ctrl, had_to_stop, saved_targets)) {
         ctrl->Disconnect();
         return 1;
     }
@@ -398,7 +390,7 @@ int cmd_list(const std::string& device)
     if (!err.IsNone()) {
         fprintf(stderr, "Error: HDD directory read failed: %s\n",
                 err.AsString().c_str());
-        if (had_to_stop) restart_logging(ctrl);
+        if (had_to_stop) restart_logging(ctrl, saved_targets);
         ctrl->Disconnect();
         return 1;
     }
@@ -408,7 +400,7 @@ int cmd_list(const std::string& device)
 
     if (count == 0) {
         printf("Logger '%s': no measurement on HDD.\n", device.c_str());
-        if (had_to_stop) restart_logging(ctrl);
+        if (had_to_stop) restart_logging(ctrl, saved_targets);
         ctrl->Disconnect();
         return 0;
     }
@@ -442,7 +434,7 @@ int cmd_list(const std::string& device)
     printf("\n");
 
     // 6. Restart logging if it was stopped
-    if (had_to_stop) restart_logging(ctrl);
+    if (had_to_stop) restart_logging(ctrl, saved_targets);
 
     // 7. Disconnect
     ctrl->Disconnect();
@@ -857,12 +849,12 @@ int cmd_download(const std::string& device,
     std::error_code ec;
     std::filesystem::create_directories(dest_dir, ec);
     if (ec) {
-        fprintf(stderr, "Erreur : impossible de créer '%s' : %s\n",
+        fprintf(stderr, "Error: cannot create '%s': %s\n",
                 dest_dir.c_str(), ec.message().c_str());
         return 1;
     }
 
-    // 2. Connexion
+    // 2. Connect
     auto ctrl = LoggerClient::CreateCtrl(LoggerClient::LCT_Universal);
     fprintf(stderr, "Connecting to '%s'...\n", device.c_str());
     auto err = ctrl->Connect(device);
@@ -886,41 +878,52 @@ int cmd_download(const std::string& device,
                     static_cast<int32_t>(err_name), device.c_str());
     }
 
-    fprintf(stderr, "Connecté. Type : ");
+    // 3. Print type on its own complete line before any stop call to avoid
+    //    output interleaving with "Stopping logging..." on stderr
+    using TypeId = connection::ConnectionType::TypeId;
+    const TypeId::type_t conn_type = ctrl->ConnectionType();
+    switch (conn_type) {
+        case TypeId::Generation_2:
+        case TypeId::DataCube:
+        case TypeId::DLNcluster:
+            fprintf(stderr, "Connected. Type: Gen2 (engine::Download + MF4)\n");
+            if (delete_after) fprintf(stderr, "Mode: download + delete after success\n");
+            break;
+        case TypeId::Generation_3:
+        case TypeId::DataCubeNSeries:
+            fprintf(stderr, "Connected. Type: Gen3 (engine::Copy)\n");
+            if (delete_after) fprintf(stderr, "Mode: copy + delete after success\n");
+            break;
+        default:
+            fprintf(stderr, "Connected. Type: unsupported\n");
+            break;
+    }
 
-    // 3. Optional logging stop (--stop-logging)
-    bool had_to_stop = false;
+    // 4. Optional logging stop (--stop-logging)
+    bool     had_to_stop   = false;
+    uint32_t saved_targets = 0;
     if (stop_logging) {
-        if (!stop_logging_if_needed(ctrl, had_to_stop)) {
+        if (!stop_logging_if_needed(ctrl, had_to_stop, saved_targets)) {
             ctrl->Disconnect();
             return 1;
         }
     }
 
-    // 4. Dispatch Gen2 / Gen3 based on type detected after connection
+    // 5. Dispatch Gen2 / Gen3
     int rc = 0;
-    using TypeId = connection::ConnectionType::TypeId;
-
-    switch (ctrl->ConnectionType()) {
+    switch (conn_type) {
         case TypeId::Generation_2:
         case TypeId::DataCube:
         case TypeId::DLNcluster:
-            fprintf(stderr, "Gen2 (engine::Download + MF4)\n");
-            if (delete_after)
-                fprintf(stderr, "Mode: download + delete after success\n");
             rc = download_gen2(ctrl, logger_name, dest_dir, index, delete_after);
             break;
 
         case TypeId::Generation_3:
         case TypeId::DataCubeNSeries:
-            fprintf(stderr, "Gen3 (engine::Copy)\n");
-            if (delete_after)
-                fprintf(stderr, "Mode: copy + delete after success\n");
             rc = copy_gen3(ctrl, dest_dir, index, delete_after);
             break;
 
         default:
-            fprintf(stderr, "unsupported.\n");
             fprintf(stderr, "Error: unsupported device type for download.\n");
             fprintf(stderr, "       Supported types: Gen2, DataCube, DLNcluster, Gen3, DataCubeNSeries.\n");
             rc = 1;
@@ -928,7 +931,7 @@ int cmd_download(const std::string& device,
     }
 
     if (stop_logging && had_to_stop)
-        restart_logging(ctrl);
+        restart_logging(ctrl, saved_targets);
 
     ctrl->Disconnect();
     if (rc == 0)
@@ -967,8 +970,9 @@ int cmd_delete(const std::string& device, int index)
         case TypeId::DataCube:
         case TypeId::DLNcluster: {
             // Stop logging to access the HDD
-            bool had_to_stop = false;
-            if (!stop_logging_if_needed(ctrl, had_to_stop)) {
+            bool     had_to_stop   = false;
+            uint32_t saved_targets = 0;
+            if (!stop_logging_if_needed(ctrl, had_to_stop, saved_targets)) {
                 ctrl->Disconnect();
                 return 1;
             }
@@ -980,7 +984,7 @@ int cmd_delete(const std::string& device, int index)
             if (!err.IsNone()) {
                 fprintf(stderr, "Error: HddDirMeasurement failed: %s\n",
                         err.AsString().c_str());
-                if (had_to_stop) restart_logging(ctrl);
+                if (had_to_stop) restart_logging(ctrl, saved_targets);
                 ctrl->Disconnect();
                 return 1;
             }
@@ -991,7 +995,7 @@ int cmd_delete(const std::string& device, int index)
             if (static_cast<size_t>(index) >= count) {
                 fprintf(stderr, "Error: index %d out of range (0..%zu)\n",
                         index, count - 1);
-                if (had_to_stop) restart_logging(ctrl);
+                if (had_to_stop) restart_logging(ctrl, saved_targets);
                 ctrl->Disconnect();
                 return 1;
             }
@@ -1005,7 +1009,7 @@ int cmd_delete(const std::string& device, int index)
             if (rc == 0)
                 printf("   Measurement %d deleted.\n", index);
 
-            if (had_to_stop) restart_logging(ctrl);
+            if (had_to_stop) restart_logging(ctrl, saved_targets);
             break;
         }
 
