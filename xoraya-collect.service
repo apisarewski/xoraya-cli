@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=alexander
 EnvironmentFile=/home/alexander/Documents/DataloggerExtract/LogViewerLib/xoraya_cli/xoraya-collect.conf
-ExecStart=/usr/local/bin/xoraya-cli collect --dest ${DEST} --interval ${INTERVAL} --delete-after-download
+ExecStart=/usr/local/bin/xoraya-cli collect --dest ${DEST} --interval ${INTERVAL} --delete-after-download --verbose
 Restart=on-failure
 RestartSec=5
 
