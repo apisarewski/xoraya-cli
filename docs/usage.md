@@ -24,21 +24,21 @@ Broadcasts on the local network for 2 seconds and lists all Xoraya loggers that 
 **Output:**
 
 ```
-Nom                       IP               Firmware             État               Type
+Name                      IP               Firmware             State              Type
 -------------------------  ----------------  --------------------  ------------------  ----------
 DX11252-2                 192.168.2.1      4.0b.0022            Multi-Logging       Gen2 (N4000)
 
-1 logger(s) trouvé(s).
+1 logger(s) found.
 ```
 
 **Fields:**
 
 | Field | Description |
 |---|---|
-| Nom | Alias name of the logger (used as `<device>` in other commands) |
+| Name | Alias name of the logger (used as `<device>` in other commands) |
 | IP | IPv4 address |
 | Firmware | Firmware version string |
-| État | Current logging state (e.g. `Multi-Logging`, `Stopped`) |
+| State | Current logging state (e.g. `Multi-Logging`, `Stopped`) |
 | Type | Device family: Gen2 (N4000), DataCube, DLNcluster, Gen3, DataCubeNSeries |
 
 **Notes:**
@@ -65,9 +65,9 @@ Connects to the logger, temporarily stops logging if necessary, lists all measur
 **Output:**
 
 ```
-Logger : DX11252-2  (3 mesure(s))
+Logger: DX11252-2  (3 measurement(s))
 
-   #  Début (UTC)          Fin (UTC)            Messages     Taille  Type
+   #  Start (UTC)          End (UTC)            Messages       Size  Type
  ----------------------------------------------------------------------------------
    0  2025-12-16 09:54:05  2025-12-16 09:54:45      24524   852.2 KB  Main
    1  2025-12-16 13:25:01  2025-12-16 13:25:28      11966   448.7 KB  Snapshot
@@ -79,9 +79,9 @@ Logger : DX11252-2  (3 mesure(s))
 | Field | Description |
 |---|---|
 | # | Zero-based index, used as `N` in `download` and `delete` |
-| Début / Fin | UTC timestamps of the measurement |
+| Start / End | UTC timestamps of the measurement |
 | Messages | Number of log messages recorded |
-| Taille | Uncompressed data size on the HDD |
+| Size | Uncompressed data size on the HDD |
 | Type | `Main` (continuous recording) or `Snapshot` (triggered capture) |
 
 **Notes:**
@@ -133,20 +133,20 @@ Downloads measurements from the logger's HDD to a local directory.
 **Output (Gen2 example):**
 
 ```
-Connexion à 'DX11252-2'...
-Connecté. Type : Gen2 (engine::Download + MF4)
-Téléchargement de 3 mesure(s)...
+Connecting to 'DX11252-2'...
+Connected. Type: Gen2 (engine::Download + MF4)
+Downloading 3 measurement(s)...
 
-  → Mesure 0
-   45.2%   12 Mbit/s  ETA : 32s
-  ✓  47185920 / 47185920 octets  11 Mbit/s moy.
+  → Measurement 0
+   45.2%   12 Mbit/s  ETA: 32s
+  ✓  47185920 / 47185920 bytes  11 Mbit/s avg.
 
-  → Mesure 1
-  ✓  33685504 / 33685504 octets   9 Mbit/s moy.
+  → Measurement 1
+  ✓  33685504 / 33685504 bytes   9 Mbit/s avg.
 
-  Vitesse moyenne globale : 10 Mbit/s
+  Overall average speed: 10 Mbit/s
 
-Fichiers disponibles dans : /tmp/logs
+Files available in: /tmp/logs
 ```
 
 **Notes:**
@@ -172,8 +172,8 @@ Deletes measurement at index `N` from the logger's HDD. This operation is **irre
 **Output:**
 
 ```
-⚠  Suppression de la mesure 2 sur 'DX11252-2'...
-   Mesure 2 supprimée.
+⚠  Deleting measurement 2 from 'DX11252-2'...
+   Measurement 2 deleted.
 ```
 
 **Notes:**

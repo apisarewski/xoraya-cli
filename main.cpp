@@ -1,16 +1,16 @@
 /**
  * main.cpp — xoraya-cli
  *
- * CLI Linux autonome pour loggers Xoraya (ML-N4000 et compatibles).
- * Sans Qt — C++17 pur + SDK X2E Linux système.
+ * Autonomous Linux CLI for Xoraya loggers (ML-N4000 and compatible).
+ * No Qt — pure C++17 + X2E Linux system SDK.
  *
- * Usage : xoraya-cli <command> [options]
+ * Usage: xoraya-cli <command> [options]
  *
- * Phases :
- *   Phase 1 — scan       
- *   Phase 2 — list       
- *   Phase 3 — download   
- *   Phase 4 — delete   
+ * Phases:
+ *   Phase 1 — scan
+ *   Phase 2 — list
+ *   Phase 3 — download
+ *   Phase 4 — delete
  */
 
 #include "scanner.hpp"
@@ -23,7 +23,7 @@
 #include <string>
 
 // ---------------------------------------------------------------------------
-// Aide
+// Help
 // ---------------------------------------------------------------------------
 
 static void print_help(const char* prog)
@@ -31,27 +31,29 @@ static void print_help(const char* prog)
     printf("Usage: %s <command> [options]\n\n", prog);
     printf("Commands:\n");
     printf("  scan\n");
-    printf("      Scanne le réseau local et liste les loggers Xoraya disponibles.\n\n");
+    printf("      Scans the local network and lists available Xoraya loggers.\n\n");
     printf("  list <device>\n");
-    printf("      Liste les mesures présentes sur l'HDD du logger <device>.\n\n");
-    printf("  download <device> <dest_dir> [N] [--delete-after-download]\n");
-    printf("      Télécharge toutes les mesures (ou la mesure N) dans <dest_dir>.\n");
-    printf("      Par défaut : non destructif. Aucune mesure n'est supprimée.\n");
-    printf("      Avec --delete-after-download : suppression après download réussi uniquement.\n\n");
+    printf("      Lists measurements stored on the HDD of logger <device>.\n\n");
+    printf("  download <device> <dest_dir> [N] [--delete-after-download] [--stop-logging]\n");
+    printf("      Downloads all measurements (or measurement N) to <dest_dir>.\n");
+    printf("      By default: non-destructive. No measurement is deleted.\n");
+    printf("      With --delete-after-download: delete after successful download only.\n");
+    printf("      With --stop-logging: stop logging during download, restart it afterwards.\n\n");
     printf("  delete <device> <N>\n");
-    printf("      Supprime manuellement la mesure d'index N sur le logger.\n\n");
+    printf("      Manually deletes measurement at index N from the logger.\n\n");
     printf("  collect [options]\n");
-    printf("      Scanne le réseau et télécharge les mesures de tous les loggers.\n");
-    printf("      Options :\n");
-    printf("        --dest <dir>              Dossier de destination (défaut : ./downloads)\n");
-    printf("        --delete-after-download   Supprime les mesures après download réussi\n");
-    printf("        --interval <s>            Boucle infinie, re-scan toutes les N secondes (N > 0)\n");
-    printf("        --device <ip>             Limite à un logger par IP exacte\n");
-    printf("        --dry-run                 Affiche ce qui serait fait, sans télécharger\n");
-    printf("        --verbose                 Affiche la progression détaillée par mesure\n\n");
+    printf("      Scans the network and downloads measurements from all loggers.\n");
+    printf("      Options:\n");
+    printf("        --dest <dir>              Destination folder (default: ./downloads)\n");
+    printf("        --delete-after-download   Delete measurements after successful download\n");
+    printf("        --interval <s>            Loop indefinitely, re-scanning every N seconds (N > 0)\n");
+    printf("        --device <ip>             Restrict to one logger by exact IP\n");
+    printf("        --dry-run                 Show what would happen without downloading\n");
+    printf("        --verbose                 Show detailed per-measurement progress\n");
+    printf("        --stop-logging            Stop logging during download, restart it afterwards\n\n");
     printf("Options:\n");
-    printf("  --help, -h    Affiche cette aide.\n");
-    printf("\nExemples:\n");
+    printf("  --help, -h    Display this help.\n");
+    printf("\nExamples:\n");
     printf("  %s scan\n", prog);
     printf("  %s list XORAYA-001\n", prog);
     printf("  %s download XORAYA-001 /tmp/logs\n", prog);
@@ -67,23 +69,22 @@ static void print_help(const char* prog)
 }
 
 // ---------------------------------------------------------------------------
-// Commandes
+// Commands
 // ---------------------------------------------------------------------------
 
 static int cmd_scan()
 {
-    fprintf(stderr, "Scan du réseau (2 s)...\n\n");
+    fprintf(stderr, "Scanning network (2 s)...\n\n");
 
     auto loggers = scan_network(2000);
 
     if (loggers.empty()) {
-        printf("Aucun logger trouvé.\n");
+        printf("No logger found.\n");
         return 0;
     }
 
-    // En-tête tableau
     printf("%-25s %-16s %-20s %-18s %s\n",
-           "Nom", "IP", "Firmware", "État", "Type");
+           "Name", "IP", "Firmware", "State", "Type");
     printf("%-25s %-16s %-20s %-18s %s\n",
            "-------------------------",
            "----------------",
@@ -100,7 +101,7 @@ static int cmd_scan()
                lg.type.c_str());
     }
 
-    printf("\n%zu logger(s) trouvé(s).\n", loggers.size());
+    printf("\n%zu logger(s) found.\n", loggers.size());
     return 0;
 }
 
@@ -113,29 +114,31 @@ static int cmd_list(const char* device)
 static int cmd_download(int argc, char** argv)
 {
     // argv[0] = device, argv[1] = dest_dir
-    // argv[2..] = optionnels : [N] [--delete-after-download] (ordre libre)
+    // argv[2..] = optional: [N] [--delete-after-download] [--stop-logging] (any order)
     const std::string device   = argv[0];
     const std::string dest_dir = argv[1];
-    int  index        = -1;    // -1 = toutes les mesures
-    bool delete_after = false; // non destructif par défaut
+    int  index        = -1;
+    bool delete_after = false;
+    bool stop_logging = false;
 
     for (int i = 2; i < argc; ++i) {
         if (strcmp(argv[i], "--delete-after-download") == 0) {
             delete_after = true;
+        } else if (strcmp(argv[i], "--stop-logging") == 0) {
+            stop_logging = true;
         } else {
-            // Tenter de parser comme un index numérique
             char* end = nullptr;
             long n = strtol(argv[i], &end, 10);
             if (*end != '\0' || n < 0) {
-                fprintf(stderr, "Erreur : argument '%s' non reconnu.\n", argv[i]);
-                fprintf(stderr, "Usage: download <device> <dest_dir> [N] [--delete-after-download]\n");
+                fprintf(stderr, "Error: unrecognized argument '%s'.\n", argv[i]);
+                fprintf(stderr, "Usage: download <device> <dest_dir> [N] [--delete-after-download] [--stop-logging]\n");
                 return 1;
             }
             index = static_cast<int>(n);
         }
     }
 
-    return ::cmd_download(device, dest_dir, index, delete_after);
+    return ::cmd_download(device, dest_dir, index, delete_after, stop_logging);
 }
 
 static int cmd_delete(const char* device, const char* index_str)
@@ -143,7 +146,7 @@ static int cmd_delete(const char* device, const char* index_str)
     char* end = nullptr;
     long n = strtol(index_str, &end, 10);
     if (*end != '\0' || n < 0) {
-        fprintf(stderr, "Erreur : index '%s' invalide (entier >= 0 attendu)\n", index_str);
+        fprintf(stderr, "Error: invalid index '%s' (integer >= 0 expected)\n", index_str);
         return 1;
     }
     return ::cmd_delete(std::string(device), static_cast<int>(n));
@@ -182,7 +185,7 @@ int main(int argc, char** argv)
             fprintf(stderr, "Usage: %s download <device> <dest_dir> [N]\n", argv[0]);
             return 1;
         }
-        // argv[2] = device, argv[3] = dest_dir, argv[4] (optionnel) = N
+        // argv[2] = device, argv[3] = dest_dir, argv[4] (optional) = N
         return cmd_download(argc - 2, argv + 2);
     }
 
@@ -203,41 +206,43 @@ int main(int argc, char** argv)
                 opts.dry_run = true;
             } else if (strcmp(argv[i], "--verbose") == 0) {
                 opts.verbose = true;
+            } else if (strcmp(argv[i], "--stop-logging") == 0) {
+                opts.stop_logging = true;
             } else if (strcmp(argv[i], "--dest") == 0) {
                 if (i + 1 >= argc) {
-                    fprintf(stderr, "Erreur : --dest requiert un argument.\n");
+                    fprintf(stderr, "Error: --dest requires an argument.\n");
                     return 1;
                 }
                 opts.dest_dir = argv[++i];
             } else if (strcmp(argv[i], "--interval") == 0) {
                 if (i + 1 >= argc) {
-                    fprintf(stderr, "Erreur : --interval requiert un argument.\n");
+                    fprintf(stderr, "Error: --interval requires an argument.\n");
                     return 1;
                 }
                 char* end = nullptr;
                 long n = strtol(argv[++i], &end, 10);
                 if (*end != '\0' || n <= 0) {
-                    fprintf(stderr, "Erreur : --interval doit être un entier > 0.\n");
+                    fprintf(stderr, "Error: --interval must be an integer > 0.\n");
                     return 1;
                 }
                 opts.interval_s = static_cast<int>(n);
             } else if (strcmp(argv[i], "--device") == 0) {
                 if (i + 1 >= argc) {
-                    fprintf(stderr, "Erreur : --device requiert un argument.\n");
+                    fprintf(stderr, "Error: --device requires an argument.\n");
                     return 1;
                 }
                 opts.device_filter = argv[++i];
             } else {
-                fprintf(stderr, "Erreur : argument '%s' non reconnu.\n", argv[i]);
+                fprintf(stderr, "Error: unrecognized argument '%s'.\n", argv[i]);
                 fprintf(stderr, "Usage: %s collect [--dest <dir>] [--delete-after-download] "
-                                "[--interval <s>] [--device <ip>] [--dry-run] [--verbose]\n", argv[0]);
+                                "[--interval <s>] [--device <ip>] [--dry-run] [--verbose] [--stop-logging]\n", argv[0]);
                 return 1;
             }
         }
         return cmd_collect(opts);
     }
 
-    fprintf(stderr, "Erreur : commande inconnue '%s'\n\n", cmd);
+    fprintf(stderr, "Error: unknown command '%s'\n\n", cmd);
     print_help(argv[0]);
     return 1;
 }

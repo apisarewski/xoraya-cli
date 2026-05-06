@@ -4,7 +4,7 @@
 #include <vector>
 
 /**
- * Informations sur un logger Xoraya découvert sur le réseau.
+ * Information about a Xoraya logger discovered on the network.
  */
 struct LoggerInfo {
     std::string name;
@@ -15,9 +15,9 @@ struct LoggerInfo {
 };
 
 /**
- * Scanne le réseau local à la recherche de loggers Xoraya.
+ * Scans the local network for Xoraya loggers.
  *
- * @param timeout_ms  Durée du scan en millisecondes (défaut : 2000 ms)
- * @return            Liste des loggers trouvés
+ * @param timeout_ms  Scan duration in milliseconds (default: 2000 ms)
+ * @return            List of discovered loggers
  */
 std::vector<LoggerInfo> scan_network(int timeout_ms = 2000);

@@ -1,10 +1,10 @@
 /**
- * collector.cpp — implémentation de la commande collect
+ * collector.cpp — collect command implementation
  *
- * Scanne le réseau, télécharge les mesures de tous les loggers trouvés
- * (ou d'un logger ciblé par IP), optionnellement en boucle.
+ * Scans the network, downloads measurements from all discovered loggers
+ * (or a specific logger filtered by IP), optionally in a loop.
  *
- * Réutilise directement :
+ * Reuses directly:
  *   - scan_network()   (scanner.hpp)
  *   - cmd_download()   (downloader.hpp)
  */
@@ -25,7 +25,7 @@
 #include <vector>
 
 // ---------------------------------------------------------------------------
-// Signal Ctrl+C
+// Ctrl+C signal
 // ---------------------------------------------------------------------------
 
 static volatile sig_atomic_t g_stop = 0;
@@ -33,26 +33,24 @@ static volatile sig_atomic_t g_stop = 0;
 static void on_sigint(int)
 {
     g_stop = 1;
-    abort_downloads(); // interrompt WaitForEndOfDownload() si un download est en cours
+    abort_downloads(); // interrupts WaitForEndOfDownload() if a download is in progress
 }
 
 // ---------------------------------------------------------------------------
-// Création du dossier destination
+// Destination directory creation
 // ---------------------------------------------------------------------------
 
 /**
- * Crée récursivement le répertoire dest (équivalent mkdir -p).
- * Retourne 0 si succès (ou si déjà existant), -1 si erreur.
+ * Recursively creates directory dest (equivalent to mkdir -p).
+ * Returns 0 on success (or if already exists), -1 on error.
  */
 static int mkdir_p(const std::string& path)
 {
     if (path.empty()) return -1;
 
-    // Essai direct
     if (mkdir(path.c_str(), 0755) == 0 || errno == EEXIST)
         return 0;
 
-    // Sinon : créer les parents d'abord
     std::string parent = path;
     auto pos = parent.rfind('/');
     if (pos == std::string::npos || pos == 0)
@@ -69,7 +67,7 @@ static int mkdir_p(const std::string& path)
 }
 
 // ---------------------------------------------------------------------------
-// Redirection stdout/stderr pour le mode simple
+// stdout/stderr redirection for simple mode
 // ---------------------------------------------------------------------------
 
 struct FdGuard {
@@ -98,7 +96,7 @@ struct FdGuard {
 };
 
 // ---------------------------------------------------------------------------
-// Horodatage pour l'en-tête de chaque scan
+// Timestamp header for each scan
 // ---------------------------------------------------------------------------
 
 static void print_timestamp()
@@ -112,23 +110,23 @@ static void print_timestamp()
 }
 
 // ---------------------------------------------------------------------------
-// Passe unique collect
+// Single collect pass
 // ---------------------------------------------------------------------------
 
 /**
- * Effectue une passe de collect : scan + filtre + download.
- * Retourne le nombre de loggers ayant échoué.
+ * Runs one collect pass: scan + filter + download.
+ * Returns the number of loggers that failed.
  */
 static int run_pass(const CollectOptions& opts)
 {
     // --- Scan ---
     print_timestamp();
-    printf("Scan du réseau (2 s)...\n");
+    printf("Scanning network (2 s)...\n");
     fflush(stdout);
 
     auto loggers = scan_network(2000);
 
-    // --- Filtre --device (IP exacte) ---
+    // --- Filter --device (exact IP) ---
     if (!opts.device_filter.empty()) {
         std::vector<LoggerInfo> filtered;
         for (const auto& lg : loggers)
@@ -138,73 +136,72 @@ static int run_pass(const CollectOptions& opts)
     }
 
     if (loggers.empty()) {
-        printf("  Aucun logger trouvé%s.\n\n",
-               opts.device_filter.empty() ? "" : " pour ce filtre");
+        printf("  No logger found%s.\n\n",
+               opts.device_filter.empty() ? "" : " for this filter");
         return 0;
     }
 
     // --- Dry-run ---
     if (opts.dry_run) {
-        printf("  [DRY-RUN] %zu logger(s) qui seraient traités :\n", loggers.size());
+        printf("  [DRY-RUN] %zu logger(s) that would be processed:\n", loggers.size());
         for (const auto& lg : loggers) {
-            printf("    %-25s %-16s → download vers %s",
+            printf("    %-25s %-16s → download to %s",
                    lg.name.c_str(), lg.ip.c_str(), opts.dest_dir.c_str());
             if (opts.delete_after)
-                printf("  (+ suppression après download)");
+                printf("  (+ delete after download)");
             printf("\n");
         }
-        printf("  Aucune action effectuée.\n\n");
+        printf("  No action taken.\n\n");
         return 0;
     }
 
-    // --- Création du dossier destination ---
+    // --- Create destination directory ---
     if (mkdir_p(opts.dest_dir) != 0) {
-        fprintf(stderr, "Erreur : impossible de créer le dossier '%s' : %s\n",
+        fprintf(stderr, "Error: cannot create directory '%s': %s\n",
                 opts.dest_dir.c_str(), strerror(errno));
-        return static_cast<int>(loggers.size()); // tous en échec
+        return static_cast<int>(loggers.size());
     }
 
-    // --- Téléchargement ---
+    // --- Download ---
     int fail = 0;
 
     for (const auto& lg : loggers) {
         if (g_stop) break;
 
         if (opts.verbose) {
-            // Sortie complète de cmd_download
             printf("\n--- %s (%s) ---\n", lg.name.c_str(), lg.ip.c_str());
             fflush(stdout);
-            int rc = cmd_download(lg.name, opts.dest_dir, -1, opts.delete_after);
+            int rc = cmd_download(lg.name, opts.dest_dir, -1, opts.delete_after, opts.stop_logging);
             if (rc != 0) {
-                fprintf(stderr, "  [collect] Erreur sur '%s'.\n", lg.name.c_str());
+                fprintf(stderr, "  [collect] Error on '%s'.\n", lg.name.c_str());
                 ++fail;
             }
         } else {
-            // Mode simple : une ligne par logger
+            // Simple mode: one line per logger
             printf("  %-25s → ", lg.name.c_str());
             fflush(stdout);
 
             FdGuard guard;
             guard.suppress();
-            int rc = cmd_download(lg.name, opts.dest_dir, -1, opts.delete_after);
+            int rc = cmd_download(lg.name, opts.dest_dir, -1, opts.delete_after, opts.stop_logging);
             guard.restore();
 
             if (rc == 0) {
                 printf("OK\n");
             } else {
-                printf("ERREUR\n");
+                printf("ERROR\n");
                 ++fail;
             }
             fflush(stdout);
         }
     }
 
-    // --- Résumé ---
+    // --- Summary ---
     int total = static_cast<int>(loggers.size());
     int ok    = total - fail;
-    printf("\n  %d logger(s) : %d réussi(s)", total, ok);
+    printf("\n  %d logger(s): %d succeeded", total, ok);
     if (fail > 0)
-        printf(", %d échoué(s)", fail);
+        printf(", %d failed", fail);
     printf(".\n\n");
 
     return fail;
@@ -226,22 +223,22 @@ int cmd_collect(const CollectOptions& opts)
             global_fail = 1;
 
         if (g_stop) {
-            printf("Collect interrompu (Ctrl+C).\n");
+            printf("Collect interrupted (Ctrl+C).\n");
             break;
         }
 
         if (opts.interval_s <= 0)
             break;
 
-        printf("Prochain scan dans %d seconde(s). Ctrl+C pour arrêter.\n\n",
+        printf("Next scan in %d second(s). Ctrl+C to stop.\n\n",
                opts.interval_s);
         fflush(stdout);
 
-        // sleep interruptible par SIGINT
+        // sleep interruptible by SIGINT
         sleep(static_cast<unsigned>(opts.interval_s));
 
         if (g_stop) {
-            printf("Collect interrompu (Ctrl+C).\n");
+            printf("Collect interrupted (Ctrl+C).\n");
             break;
         }
     }

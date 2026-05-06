@@ -1,0 +1,15 @@
+[Unit]
+Description=Xoraya data collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=alexander
+EnvironmentFile=/home/alexander/Documents/DataloggerExtract/LogViewerLib/xoraya_cli/xoraya-collect.conf
+ExecStart=/usr/local/bin/xoraya-cli collect --dest ${DEST} --interval ${INTERVAL} --delete-after-download
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

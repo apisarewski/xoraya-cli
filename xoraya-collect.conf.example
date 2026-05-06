@@ -1,0 +1,9 @@
+# xoraya-collect configuration
+# Copy this file to xoraya-collect.conf and edit as needed.
+# After changing values: sudo systemctl restart xoraya-collect
+
+# Destination directory for downloaded MF4 files
+DEST=/home/Dexterlogs
+
+# Re-scan interval in seconds (minimum 1)
+INTERVAL=10

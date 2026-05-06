@@ -2,9 +2,9 @@
 # Build: make
 # Clean: make clean
 #
-# Dépendances système requises :
-#   - SDK X2E Linux  : /usr/lib/libxorayasdk.so  /usr/include/x2e/
-#   - g++ >= 9 (C++17 + std::filesystem intégré)
+# Required system dependencies:
+#   - X2E Linux SDK  : /usr/lib/libxorayasdk.so  /usr/include/x2e/
+#   - g++ >= 9 (C++17 + std::filesystem built-in)
 #   - pthread
 
 CXX      ?= g++
@@ -13,7 +13,7 @@ LDFLAGS   = -lxorayasdk -lpthread
 
 TARGET    = xoraya-cli
 
-# Sources — on ajoute des fichiers au fil des phases
+# Sources
 SRCS  = main.cpp
 SRCS += scanner.cpp
 SRCS += downloader.cpp
