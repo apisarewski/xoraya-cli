@@ -850,7 +850,8 @@ static int copy_gen3(LoggerCtrl& ctrl,
 int cmd_download(const std::string& device,
                  const std::string& dest_dir,
                  int index,
-                 bool delete_after)
+                 bool delete_after,
+                 bool stop_logging)
 {
     // 1. Créer le répertoire de destination si nécessaire
     std::error_code ec;
@@ -887,7 +888,16 @@ int cmd_download(const std::string& device,
 
     fprintf(stderr, "Connecté. Type : ");
 
-    // 3. Dispatch Gen2 / Gen3 selon le type détecté après connexion
+    // 3. Arrêt optionnel du logging (--stop-logging)
+    bool had_to_stop = false;
+    if (stop_logging) {
+        if (!stop_logging_if_needed(ctrl, had_to_stop)) {
+            ctrl->Disconnect();
+            return 1;
+        }
+    }
+
+    // 4. Dispatch Gen2 / Gen3 selon le type détecté après connexion
     int rc = 0;
     using TypeId = connection::ConnectionType::TypeId;
 
@@ -916,6 +926,9 @@ int cmd_download(const std::string& device,
             rc = 1;
             break;
     }
+
+    if (stop_logging && had_to_stop)
+        restart_logging(ctrl);
 
     ctrl->Disconnect();
     if (rc == 0)

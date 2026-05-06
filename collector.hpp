@@ -7,11 +7,12 @@
  */
 struct CollectOptions {
     std::string dest_dir     = "./downloads";
-    bool        delete_after = false;
-    int         interval_s   = -1;    // -1 = passe unique ; >0 = boucle
-    std::string device_filter;        // vide = tous ; sinon IP exacte
-    bool        dry_run      = false;
-    bool        verbose      = false;
+    bool        delete_after  = false;
+    int         interval_s    = -1;    // -1 = passe unique ; >0 = boucle
+    std::string device_filter;         // vide = tous ; sinon IP exacte
+    bool        dry_run       = false;
+    bool        verbose       = false;
+    bool        stop_logging  = false; // arrêter le logging pendant le download (opt-in)
 };
 
 /**

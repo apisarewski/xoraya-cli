@@ -35,7 +35,8 @@ int cmd_list(const std::string& device);
 int cmd_download(const std::string& device,
                  const std::string& dest_dir,
                  int index = -1,
-                 bool delete_after = false);
+                 bool delete_after = false,
+                 bool stop_logging = false);
 
 /**
  * Supprime une mesure ciblée par son index sur le logger.
