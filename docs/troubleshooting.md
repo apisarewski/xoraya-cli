@@ -28,7 +28,7 @@ The SDK cannot establish a TCP connection to the logger.
 ### Logger not found by `scan`
 
 ```
-Aucun logger trouvé.
+No logger found.
 ```
 
 **Probable causes:**
@@ -44,7 +44,7 @@ Aucun logger trouvé.
 
 ## Download errors
 
-### `Erreur : HddDirMeasurement échoué`
+### `Error: HddDirMeasurement failed`
 
 The SDK failed to read the measurement list from the HDD.
 
@@ -54,7 +54,7 @@ The SDK failed to read the measurement list from the HDD.
 
 ---
 
-### `Erreur : engine::Download::Run() échoué`
+### `Error: engine::Download::Run() failed`
 
 The download engine failed to start.
 
@@ -64,7 +64,7 @@ The download engine failed to start.
 
 ---
 
-### `Erreur : download terminé avec état N`
+### `Error: copy finished with state N`
 
 The download completed but with a non-`Done` state.
 
@@ -98,7 +98,7 @@ This was a bug where `%index%` was passed as a SDK placeholder to `BuildFilename
 `GetName()` failed after connection and the fallback value (the connection string) was used. Look for this warning in the output:
 
 ```
-Avertissement : GetName() échoué (code N), utilisation de '192.168.2.1'
+Warning: GetName() failed (code N), using '192.168.2.1'
 ```
 
 This should not occur in normal operation. If it does, the files are still valid — only the name prefix differs.
@@ -124,7 +124,7 @@ If the process was **killed with SIGKILL** (not Ctrl+C / SIGINT), the SDK connec
 ## Gen1 device
 
 ```
-Erreur : type de device non supporté pour le téléchargement.
+Error: unsupported device type for download.
 ```
 
 Gen1 devices appear in `scan` output but are not supported for `download`, `list`, or `delete`. No workaround exists within this tool.

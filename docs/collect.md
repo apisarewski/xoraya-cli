@@ -35,11 +35,11 @@ If a logger fails (connection error, SDK error), the error is printed and the co
 One line per logger, printed after the download completes:
 
 ```
-[2026-04-16 13:00:34 UTC] Scan du réseau (2 s)...
+[2026-04-16 13:00:34 UTC] Scanning network (2 s)...
   DX11252-2                 → OK
-  DX11242-1                 → ERREUR
+  DX11242-1                 → ERROR
 
-  2 logger(s) : 1 réussi(s), 1 échoué(s).
+  2 logger(s): 1 succeeded, 1 failed.
 ```
 
 The per-measurement progress output of `cmd_download` is suppressed in this mode (redirected to `/dev/null` via `dup2`). Only the final OK/ERREUR status is shown.
@@ -49,19 +49,19 @@ The per-measurement progress output of `cmd_download` is suppressed in this mode
 Full download output for each logger, including per-measurement progress bars:
 
 ```
-[2026-04-16 13:00:34 UTC] Scan du réseau (2 s)...
+[2026-04-16 13:00:34 UTC] Scanning network (2 s)...
 
 --- DX11252-2 (192.168.2.1) ---
-Connexion à 'DX11252-2'...
-Connecté. Type : Gen2 (engine::Download + MF4)
-Téléchargement de 12 mesure(s)...
+Connecting to 'DX11252-2'...
+Connected. Type: Gen2 (engine::Download + MF4)
+Downloading 12 measurement(s)...
 
-  → Mesure 0
-   45.2%   12 Mbit/s  ETA : 32s
-  ✓  47185920 / 47185920 octets  11 Mbit/s moy.
+  → Measurement 0
+   45.2%   12 Mbit/s  ETA: 32s
+  ✓  47185920 / 47185920 bytes  11 Mbit/s avg.
   ...
 
-  1 logger(s) : 1 réussi(s).
+  1 logger(s): 1 succeeded.
 ```
 
 ### Dry-run mode (`--dry-run`)
@@ -69,10 +69,10 @@ Téléchargement de 12 mesure(s)...
 Prints what would happen without making any connection or transfer:
 
 ```
-[2026-04-16 12:59:50 UTC] Scan du réseau (2 s)...
-  [DRY-RUN] 1 logger(s) qui seraient traités :
-    DX11252-2                 192.168.2.1      → download vers /data/logs
-  Aucune action effectuée.
+[2026-04-16 12:59:50 UTC] Scanning network (2 s)...
+  [DRY-RUN] 1 logger(s) that would be processed:
+    DX11252-2                 192.168.2.1      → download to /data/logs
+  No action taken.
 ```
 
 ---
@@ -88,9 +88,9 @@ When `--interval <s>` is specified, `collect` runs indefinitely, re-scanning and
 Between passes:
 
 ```
-  1 logger(s) : 1 réussi(s).
+  1 logger(s): 1 succeeded.
 
-Prochain scan dans 300 seconde(s). Ctrl+C pour arrêter.
+Next scan in 300 second(s). Ctrl+C to stop.
 ```
 
 **Interruption:** press Ctrl+C at any time. If a download is in progress, it is cancelled cleanly (via `ForceCancel()`) and the process exits after the current measurement finishes aborting. The partial file for the interrupted measurement should be considered incomplete.
@@ -134,8 +134,8 @@ This combination is the standard pattern for a recurring collector that does not
 If no logger is found on the network (or none matches the `--device` filter), `collect` prints an informational message and returns `0` — this is not an error:
 
 ```
-[2026-04-16 13:00:34 UTC] Scan du réseau (2 s)...
-  Aucun logger trouvé.
+[2026-04-16 13:00:34 UTC] Scanning network (2 s)...
+  No logger found.
 ```
 
 In loop mode, the next scan is scheduled normally.

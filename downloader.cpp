@@ -1,18 +1,18 @@
 /**
- * downloader.cpp — Listing et téléchargement de mesures Xoraya
+ * downloader.cpp — Xoraya measurement listing and download
  *
- * Références :
- *   XorayaUtils/XorayaConnection.cpp  → logique list / stop / restart
- *   samples Xoraya/download_all/      → engine::Download et engine::Copy
+ * References:
+ *   XorayaUtils/XorayaConnection.cpp  → list / stop / restart logic
+ *   samples Xoraya/download_all/      → engine::Download and engine::Copy
  *
- * Portage Qt → C++ pur :
+ * Qt → pure C++ port:
  *   QString         → std::string
  *   QVector         → std::vector
  *   qDebug()        → fprintf(stderr, ...)
- *   QThread::msleep → std::this_thread::sleep_for  (non utilisé ici)
+ *   QThread::msleep → std::this_thread::sleep_for  (unused here)
  *
- * Note : ne pas définir X2E_XorayaWin32_DYN_LINKING_AUTO.
- *        On lie via -lxorayasdk dans le Makefile.
+ * Note: do not define X2E_XorayaWin32_DYN_LINKING_AUTO.
+ *       Link via -lxorayasdk in the Makefile.
  */
 
 #include "downloader.hpp"
@@ -43,7 +43,7 @@ using namespace x2e;
 using namespace x2e::logger;
 
 // ---------------------------------------------------------------------------
-// Annulation du download en cours (Ctrl+C depuis collect)
+// Cancel ongoing download (Ctrl+C from collect)
 // ---------------------------------------------------------------------------
 
 static volatile sig_atomic_t g_abort = 0;
@@ -51,11 +51,11 @@ static volatile sig_atomic_t g_abort = 0;
 void abort_downloads()
 {
     g_abort = 1;
-    // Le polling loop dans download_gen2() détecte g_abort et envoie HddStop
+    // The polling loop in download_gen2() detects g_abort and sends HddStop
 }
 
 // ---------------------------------------------------------------------------
-// Helpers locaux
+// Local helpers
 // ---------------------------------------------------------------------------
 
 static std::string format_size(uint64_t bytes)
@@ -72,8 +72,8 @@ static std::string format_size(uint64_t bytes)
 }
 
 /**
- * Formate un timestamp HiRes SDK en "YYYYMMDD_HHmmss" (UTC).
- * HiResDateTime::getTime() → intervalles de 100 ns depuis l'epoch Unix.
+ * Formats an HiRes SDK timestamp as "YYYYMMDD_HHmmss" (UTC).
+ * HiResDateTime::getTime() → 100 ns intervals since Unix epoch.
  */
 static std::string format_ts(timestampHiResLG_t raw)
 {
@@ -86,21 +86,21 @@ static std::string format_ts(timestampHiResLG_t raw)
 }
 
 /**
- * Corrige le champ DLC (byte 4 de CAN_DataFrame) dans chaque enregistrement
- * fixe d'un fichier MF4 produit par libxorayasdk 1.00.0046.
+ * Fixes the DLC field (byte 4 of CAN_DataFrame) in every fixed record of an
+ * MF4 file produced by libxorayasdk 1.00.0046.
  *
- * Bug SDK : X2eToMdfConverter écrit 0x00 au byte 4 (DLC_field) mais inscrit
- * correctement la valeur au byte 5 (flag2). Le patch copie byte5 → byte4.
+ * SDK bug: X2eToMdfConverter writes 0x00 at byte 4 (DLC_field) but correctly
+ * writes the value at byte 5 (flag2). The patch copies byte5 → byte4.
  *
- * Opère en mémoire (lecture complète + réécriture) ; pas de fichier temporaire.
- * Retourne le nombre de corrections appliquées, ou -1 en cas d'erreur.
+ * Operates in memory (full read + rewrite); no temporary file.
+ * Returns the number of corrections applied, or -1 on error.
  */
 static int patch_mf4_dlc(const std::string& path)
 {
-    // --- Chargement complet du fichier ---
+    // --- Full file load ---
     FILE* f = fopen(path.c_str(), "r+b");
     if (!f) {
-        fprintf(stderr, "  [patch_dlc] Impossible d'ouvrir '%s'\n", path.c_str());
+        fprintf(stderr, "  [patch_dlc] Cannot open '%s'\n", path.c_str());
         return -1;
     }
     if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return -1; }
@@ -111,20 +111,20 @@ static int patch_mf4_dlc(const std::string& path)
     std::vector<uint8_t> buf(static_cast<size_t>(fsize));
     if (static_cast<long>(fread(buf.data(), 1, static_cast<size_t>(fsize), f)) != fsize) {
         fclose(f);
-        fprintf(stderr, "  [patch_dlc] Lecture échouée : '%s'\n", path.c_str());
+        fprintf(stderr, "  [patch_dlc] Read failed: '%s'\n", path.c_str());
         return -1;
     }
 
-    // MF4 ID block commence par "MDF     " (8 octets), pas "##ID"
+    // MF4 ID block starts with "MDF     " (8 bytes), not "##ID"
     if (fsize < 8 || memcmp(buf.data(), "MDF     ", 8) != 0) {
         fclose(f);
-        fprintf(stderr, "  [patch_dlc] Fichier MF4 invalide : '%s'\n", path.c_str());
+        fprintf(stderr, "  [patch_dlc] Invalid MF4 file: '%s'\n", path.c_str());
         return -1;
     }
 
     const size_t fsz = static_cast<size_t>(fsize);
 
-    // Helpers de lecture little-endian avec borne
+    // Bounded little-endian read helpers
     auto safe_r8 = [&](size_t o) -> uint8_t {
         return (o < fsz) ? buf[o] : 0;
     };
@@ -140,18 +140,18 @@ static int patch_mf4_dlc(const std::string& path)
         if (o + 8 > fsz) return 0;
         uint64_t v; memcpy(&v, buf.data() + o, 8); return v;
     };
-    // Lit un offset de lien MF4 (int64, 0 = null)
+    // Reads an MF4 link offset (int64, 0 = null)
     auto link_at = [&](size_t o) -> size_t {
         int64_t v; if (o + 8 > fsz) return 0;
         memcpy(&v, buf.data() + o, 8);
         return (v > 0) ? static_cast<size_t>(v) : 0;
     };
 
-    // Chaque bloc MF4 : id(4) + res(4) + len(8) + lnk_cnt(8) = 24 octets d'en-tête
-    // Liens  : lnk_cnt * 8 octets
-    // Données: à partir de off + 24 + lnk_cnt * 8
+    // Each MF4 block: id(4) + res(4) + len(8) + lnk_cnt(8) = 24-byte header
+    // Links: lnk_cnt * 8 bytes
+    // Data: starting at off + 24 + lnk_cnt * 8
 
-    // ##HD toujours à l'offset 64 ; liens[0] = premier ##DG
+    // ##HD always at offset 64; links[0] = first ##DG
     const size_t HD_OFF = 64;
     size_t dg_off = link_at(HD_OFF + 24);   // HD.links[0]
 
@@ -171,7 +171,7 @@ static int patch_mf4_dlc(const std::string& path)
         uint8_t rec_id_sz = safe_r8(dg_data);
         if (rec_id_sz != 2) { dg_off = next_dg; continue; }
 
-        // --- Table des CG : rec_id → {is_vlsd, data_bytes} ---
+        // --- CG table: rec_id → {is_vlsd, data_bytes} ---
         struct CgEntry { bool valid; bool is_vlsd; uint32_t data_bytes; };
         CgEntry cg_tbl[256] = {};   // rec_ids sont petits en pratique
 
@@ -201,7 +201,7 @@ static int patch_mf4_dlc(const std::string& path)
 
         if (!has_fixed) { dg_off = next_dg; continue; }
 
-        // --- Collecte des blocs DT (direct ou via DL) ---
+        // --- Collect DT blocks (direct or via DL) ---
         struct DtSpan { size_t start; size_t len; };
         std::vector<DtSpan> dt_spans;
 
@@ -231,11 +231,11 @@ static int patch_mf4_dlc(const std::string& path)
             }
         }
 
-        // --- Scan des enregistrements et patch ---
-        // Enregistrement fixe (30 octets) :
+        // --- Scan records and patch ---
+        // Fixed record (30 bytes):
         //   rec_id(2) + timestamp(8) + Async(1) + CAN_DataFrame(19)
-        //   CAN_DataFrame byte 4 (offset 15) = DLC_field (0x00 bug) ← cible
-        //   CAN_DataFrame byte 5 (offset 16) = flag2 (DLC correct)  ← source
+        //   CAN_DataFrame byte 4 (offset 15) = DLC_field (0x00 bug) ← target
+        //   CAN_DataFrame byte 5 (offset 16) = flag2 (correct DLC)  ← source
 
         for (const auto& span : dt_spans) {
             size_t pos = 0;
@@ -273,12 +273,12 @@ static int patch_mf4_dlc(const std::string& path)
         dg_off = next_dg;
     }
 
-    // Réécriture si des corrections ont été appliquées
+    // Rewrite if corrections were applied
     if (total_patches > 0) {
         rewind(f);
         if (fwrite(buf.data(), 1, fsz, f) != fsz) {
             fclose(f);
-            fprintf(stderr, "  [patch_dlc] Écriture échouée : '%s'\n", path.c_str());
+            fprintf(stderr, "  [patch_dlc] Write failed: '%s'\n", path.c_str());
             return -1;
         }
     }
@@ -288,11 +288,11 @@ static int patch_mf4_dlc(const std::string& path)
 }
 
 /**
- * Arrête le logging si le logger est en train d'enregistrer.
+ * Stops logging if the logger is currently recording.
  *
- * @param ctrl          Contrôleur connecté
- * @param had_to_stop   [out] true si on a effectivement arrêté le logging
- * @return              true si succès (ou déjà arrêté), false en cas d'erreur SDK
+ * @param ctrl          Connected controller
+ * @param had_to_stop   [out] true if logging was actually stopped
+ * @return              true on success (or already stopped), false on SDK error
  */
 static bool stop_logging_if_needed(LoggerCtrl& ctrl, bool& had_to_stop)
 {
@@ -301,25 +301,25 @@ static bool stop_logging_if_needed(LoggerCtrl& ctrl, bool& had_to_stop)
     cmd::LogState logStateCmd;
     auto err = ctrl->DoCmd(logStateCmd);
     if (!err.IsNone()) {
-        fprintf(stderr, "Erreur : impossible de lire l'état du logger : %s\n",
+        fprintf(stderr, "Error: cannot read logger state: %s\n",
                 err.AsString().c_str());
         return false;
     }
 
-    // Déjà arrêté → rien à faire
+    // Already stopped → nothing to do
     if (logStateCmd.isStopped() == XBool::True) {
         return true;
     }
 
-    fprintf(stderr, "Arrêt du logging en cours...\n");
+    fprintf(stderr, "Stopping logging...\n");
 
-    // Arrêter le logging sur le stockage HDD uniquement
-    // (miroir de XorayaConnection::getHddMeasurementList)
+    // Stop logging on HDD storage only
+    // (mirrors XorayaConnection::getHddMeasurementList)
     cmd::LogStop cmdStop(cmd::LogStop::Force::Skip_Pending_Data);
     cmdStop.Set(cmd::types::DataTarget::TypeId::LoggerStorage);
     err = ctrl->DoCmd(cmdStop);
     if (!err.IsNone()) {
-        fprintf(stderr, "Erreur : arrêt du logging échoué : %s\n",
+        fprintf(stderr, "Error: failed to stop logging: %s\n",
                 err.AsString().c_str());
         return false;
     }
@@ -329,39 +329,39 @@ static bool stop_logging_if_needed(LoggerCtrl& ctrl, bool& had_to_stop)
 }
 
 /**
- * Redémarre le logging avec les mêmes cibles qu'avant l'arrêt.
- * Miroir de XorayaConnection::startLogging().
+ * Restarts logging with the same targets as before the stop.
+ * Mirrors XorayaConnection::startLogging().
  *
- * @param ctrl  Contrôleur connecté
+ * @param ctrl  Connected controller
  */
 static void restart_logging(LoggerCtrl& ctrl)
 {
-    // Relire l'état courant pour connaître les data sinks actifs
+    // Re-read current state to identify active data sinks
     cmd::LogState stateCmd;
     auto err = ctrl->DoCmd(stateCmd);
     if (!err.IsNone()) {
-        fprintf(stderr, "Avertissement : impossible de relire l'état pour redémarrer : %s\n",
+        fprintf(stderr, "Warning: cannot re-read state to restart logging: %s\n",
                 err.AsString().c_str());
         return;
     }
 
     if (stateCmd.isStopped() != XBool::True) {
-        return; // déjà en train de logger, rien à faire
+        return; // already logging, nothing to do
     }
 
-    // Accumuler les targets depuis le DataSink (uint32_t bitmask)
+    // Accumulate targets from the DataSink (uint32_t bitmask)
     uint32_t targets = 0;
     for (const auto& sink : stateCmd.DataSink()) {
         targets += sink.Type();
     }
 
-    fprintf(stderr, "Redémarrage du logging...\n");
-    // Variable intermédiaire pour éviter le "most vexing parse"
+    fprintf(stderr, "Restarting logging...\n");
+    // Intermediate variable to avoid the "most vexing parse"
     cmd::types::DataTarget target_mask(targets);
     cmd::LogStart cmdStart(target_mask);
     err = ctrl->DoCmd(cmdStart);
     if (!err.IsNone()) {
-        fprintf(stderr, "Avertissement : redémarrage du logging échoué : %s\n",
+        fprintf(stderr, "Warning: failed to restart logging: %s\n",
                 err.AsString().c_str());
     }
 }
@@ -376,27 +376,27 @@ int cmd_list(const std::string& device)
     auto ctrl = LoggerClient::CreateCtrl(LoggerClient::LCT_Universal);
 
     // 2. Connexion
-    fprintf(stderr, "Connexion à '%s'...\n", device.c_str());
+    fprintf(stderr, "Connecting to '%s'...\n", device.c_str());
     auto err = ctrl->Connect(device);
     if (!err.IsNone()) {
-        fprintf(stderr, "Erreur : connexion à '%s' échouée : %s\n",
+        fprintf(stderr, "Error: connection to '%s' failed: %s\n",
                 device.c_str(), err.AsString().c_str());
         return 1;
     }
-    fprintf(stderr, "Connecté.\n");
+    fprintf(stderr, "Connected.\n");
 
-    // 3. Arrêter le logging si nécessaire
+    // 3. Stop logging if needed
     bool had_to_stop = false;
     if (!stop_logging_if_needed(ctrl, had_to_stop)) {
         ctrl->Disconnect();
         return 1;
     }
 
-    // 4. Lire le répertoire HDD
+    // 4. Read HDD directory
     cmd::HddDirMeasurement cmdDir;
     err = ctrl->DoCmd(cmdDir);
     if (!err.IsNone()) {
-        fprintf(stderr, "Erreur : lecture du répertoire HDD échouée : %s\n",
+        fprintf(stderr, "Error: HDD directory read failed: %s\n",
                 err.AsString().c_str());
         if (had_to_stop) restart_logging(ctrl);
         ctrl->Disconnect();
@@ -407,16 +407,16 @@ int cmd_list(const std::string& device)
     size_t count = list.entries();
 
     if (count == 0) {
-        printf("Logger '%s' : aucune mesure sur l'HDD.\n", device.c_str());
+        printf("Logger '%s': no measurement on HDD.\n", device.c_str());
         if (had_to_stop) restart_logging(ctrl);
         ctrl->Disconnect();
         return 0;
     }
 
-    // 5. Afficher le tableau
-    printf("\nLogger : %s  (%zu mesure(s))\n\n", device.c_str(), count);
+    // 5. Display table
+    printf("\nLogger: %s  (%zu measurement(s))\n\n", device.c_str(), count);
     printf(" %3s  %-19s  %-19s  %10s  %9s  %s\n",
-           "#", "Début (UTC)", "Fin (UTC)", "Messages", "Taille", "Type");
+           "#", "Start (UTC)", "End (UTC)", "Messages", "Size", "Type");
     printf(" %s\n", std::string(82, '-').c_str());
 
     HiResDateTime ts;
@@ -441,10 +441,10 @@ int cmd_list(const std::string& device)
     }
     printf("\n");
 
-    // 6. Redémarrer le logging si on l'a arrêté
+    // 6. Restart logging if it was stopped
     if (had_to_stop) restart_logging(ctrl);
 
-    // 7. Déconnecter
+    // 7. Disconnect
     ctrl->Disconnect();
     return 0;
 }
@@ -454,17 +454,17 @@ int cmd_list(const std::string& device)
 // ===========================================================================
 
 /**
- * Supprime une liste de mesures Gen2 via HddDeleteMeasurement.
- * Appelé après un download réussi, ou directement par cmd_delete.
+ * Deletes a list of Gen2 measurements via HddDeleteMeasurement.
+ * Called after a successful download, or directly by cmd_delete.
  *
- * @param ctrl         Contrôleur connecté (logging déjà arrêté)
- * @param to_delete    Vecteur des mesures à supprimer
- * @return             0 si succès, 1 si erreur SDK
+ * @param ctrl         Connected controller (logging already stopped)
+ * @param to_delete    Vector of measurements to delete
+ * @return             0 on success, 1 on SDK error
  */
 static int delete_gen2(LoggerCtrl& ctrl,
                        const std::vector<hdd::Measurement>& to_delete)
 {
-    // Construire la MeasurementList attendue par HddDeleteMeasurement
+    // Build the MeasurementList expected by HddDeleteMeasurement
     hdd::MeasurementList del_list;
     for (const auto& m : to_delete)
         del_list.add(m);
@@ -474,7 +474,7 @@ static int delete_gen2(LoggerCtrl& ctrl,
 
     auto err = ctrl->DoCmd(cmdDel);
     if (!err.IsNone()) {
-        fprintf(stderr, "Erreur : suppression échouée : %s\n",
+        fprintf(stderr, "Error: deletion failed: %s\n",
                 err.AsString().c_str());
         return 1;
     }
@@ -482,13 +482,13 @@ static int delete_gen2(LoggerCtrl& ctrl,
 }
 
 /**
- * Supprime une mesure Gen3 via HddDeleteFinalMeasurement (plage temporelle).
- * Gen3 n'expose pas de suppression par liste — on supprime par Begin/End.
- * On appelle DoCmd une fois par mesure.
+ * Deletes Gen3 measurements via HddDeleteFinalMeasurement (time range).
+ * Gen3 does not expose list-based deletion — deletion is by Begin/End.
+ * DoCmd is called once per measurement.
  *
- * @param ctrl         Contrôleur connecté
- * @param to_delete    Vecteur des mesures à supprimer
- * @return             0 si succès, 1 si au moins une suppression échoue
+ * @param ctrl         Connected controller
+ * @param to_delete    Vector of measurements to delete
+ * @return             0 on success, 1 if at least one deletion fails
  */
 static int delete_gen3(LoggerCtrl& ctrl,
                        const std::vector<hdd::FinalMeasurement>& to_delete)
@@ -506,7 +506,7 @@ static int delete_gen3(LoggerCtrl& ctrl,
 
         auto err = ctrl->DoCmd(cmdDel);
         if (!err.IsNone()) {
-            fprintf(stderr, "Erreur : suppression mesure [%s → %s] échouée : %s\n",
+            fprintf(stderr, "Error: deletion of measurement [%s → %s] failed: %s\n",
                     dt_start.toString(HiResDateTime::TF_DateTime).c_str(),
                     dt_end.toString(HiResDateTime::TF_DateTime).c_str(),
                     err.AsString().c_str());
@@ -566,9 +566,9 @@ public:
 } // namespace
 
 // ---------------------------------------------------------------------------
-// Gen2 : HddGetMeasurement + WriterMf4
-// Miroir de XorayaConnection::onDownloadEntries() — même filtre réutilisé,
-// même boucle callAgain()/finalizeShadow(), même détection de fin via
+// Gen2: HddGetMeasurement + WriterMf4
+// Mirrors XorayaConnection::onDownloadEntries() — same reused filter,
+// same callAgain()/finalizeShadow() loop, same end detection via
 // IsReceiving() + IsDataConsuming().
 // ---------------------------------------------------------------------------
 
@@ -582,7 +582,7 @@ static int download_gen2(LoggerCtrl& ctrl,
     hdd_dir.enableShadow(); // merge stream_queue + default_queue into one measurement (prevents extra AT blocks in MF4)
     auto err = ctrl->DoCmd(hdd_dir);
     if (!err.IsNone()) {
-        fprintf(stderr, "Erreur : HddDirMeasurement échoué : %s\n",
+        fprintf(stderr, "Error: HddDirMeasurement failed: %s\n",
                 err.AsString().c_str());
         return 1;
     }
@@ -591,30 +591,30 @@ static int download_gen2(LoggerCtrl& ctrl,
     size_t count = all.entries();
 
     if (count == 0) {
-        printf("Aucune mesure disponible.\n");
+        printf("No measurement available.\n");
         return 0;
     }
 
-    // 2. Sélection des mesures
+    // 2. Select measurements
     std::vector<hdd::Measurement> targets;
     if (index < 0) {
         targets.reserve(count);
         for (size_t i = 0; i < count; ++i)
             targets.push_back(all.get(i));
-        printf("Téléchargement de %zu mesure(s)...\n", count);
+        printf("Downloading %zu measurement(s)...\n", count);
     } else {
         if (static_cast<size_t>(index) >= count) {
-            fprintf(stderr, "Erreur : index %d hors bornes (0..%zu)\n",
+            fprintf(stderr, "Error: index %d out of range (0..%zu)\n",
                     index, count - 1);
             return 1;
         }
         targets.push_back(all.get(static_cast<size_t>(index)));
-        printf("Téléchargement de la mesure %d...\n", index);
+        printf("Downloading measurement %d...\n", index);
     }
 
-    // 3. Créer le filtre UNE FOIS avant la boucle, AddFilter avant SetProperty.
-    //    XorayaConnection : lrx->ClearFilter() + AddFilter() hors boucle,
-    //    puis SetProperty("Filename") mis à jour pour chaque mesure dans la boucle.
+    // 3. Create the filter ONCE before the loop, AddFilter before SetProperty.
+    //    XorayaConnection: lrx->ClearFilter() + AddFilter() outside the loop,
+    //    then SetProperty("Filename") updated for each measurement inside the loop.
     LoggerDataRecv lrx = ctrl->GetRecv();
     lrx->ClearFilter();
     LoggerDataRecvFilter filter = MsgFilterFactory::Create(MsgFilterFactory::WriterMf4);
@@ -637,15 +637,15 @@ static int download_gen2(LoggerCtrl& ctrl,
                                 + "-" + format_ts(m.GetTimeEndHiRes())
                                 + (is_snapshot ? "_snapshot" : "");
 
-        printf("\n  → Mesure %zu\n", (index < 0 ? i : static_cast<size_t>(index)));
+        printf("\n  → Measurement %zu\n", (index < 0 ? i : static_cast<size_t>(index)));
 
-        // SetProperty APRÈS AddFilter — identique à XorayaConnection
+        // SetProperty AFTER AddFilter — identical to XorayaConnection
         filter->SetProperty("Filename",       base_path);
         filter->SetProperty("MaxFileSize",    "52428800");
         filter->SetProperty("SplitOnMaxSize", "true");
         filter->SetProperty("Extension",      "mf4");
 
-        // Boucle callAgain() — miroir exact de XorayaConnection::onDownloadEntries()
+        // callAgain() loop — exact mirror of XorayaConnection::onDownloadEntries()
         cmd::HddGetMeasurement cmdGet;
         cmdGet.Measurement(m);
 
@@ -653,14 +653,14 @@ static int download_gen2(LoggerCtrl& ctrl,
         while (call_again && !g_abort) {
             Util::ErrorHdl errH = ctrl->DoCmd(cmdGet);
             if (!errH.IsNone()) {
-                fprintf(stderr, "Erreur : HddGetMeasurement échoué : %s\n",
+                fprintf(stderr, "Error: HddGetMeasurement failed: %s\n",
                         errH.AsString().c_str());
                 return 1;
             }
 
-            // Attente de fin : IsReceiving() || IsDataConsuming() → false
-            // XorayaConnection utilise msleep(1000) ; on utilise 200 ms
-            // pour être plus réactif au Ctrl+C tout en restant fonctionnel.
+            // Wait for completion: IsReceiving() || IsDataConsuming() → false
+            // XorayaConnection uses msleep(1000); we use 200 ms
+            // for better Ctrl+C responsiveness while remaining functional.
             uint64_t last_rx = 0;
             while (!g_abort) {
                 usleep(200000);
@@ -692,11 +692,11 @@ static int download_gen2(LoggerCtrl& ctrl,
             uint64_t final_rx  = ctrl->GetCnt(ILoggerCtrl::CId_BytesRx);
             uint64_t final_max = ctrl->GetCnt(ILoggerCtrl::CId_BytesRx_Max);
             total_rx_all += final_rx;
-            printf("\r  ✓  %llu / %llu octets%30s\n",
+            printf("\r  ✓  %llu / %llu bytes%30s\n",
                    (unsigned long long)final_rx,
                    (unsigned long long)final_max, "");
 
-            // callAgain() / finalizeShadow() — identique à XorayaConnection
+            // callAgain() / finalizeShadow() — identical to XorayaConnection
             call_again = cmdGet.callAgain();
             if (!call_again && m.HasShadow()) {
                 cmdGet.finalizeShadow();
@@ -707,9 +707,9 @@ static int download_gen2(LoggerCtrl& ctrl,
 
         downloaded.push_back(m);
 
-        // Patch DLC : libxorayasdk 1.00.0046 écrit 0x00 au byte 4 de CAN_DataFrame
-        // (DLC_field) dans tous les enregistrements fixes. Byte 5 (flag2) contient
-        // la valeur correcte — on copie byte5 → byte4 pour chaque fichier split.
+        // DLC patch: libxorayasdk 1.00.0046 writes 0x00 at byte 4 of CAN_DataFrame
+        // (DLC_field) in all fixed records. Byte 5 (flag2) contains the correct
+        // value — copy byte5 → byte4 for each split file.
         {
             namespace fs = std::filesystem;
             const std::string base_fname = fs::path(base_path).filename().string();
@@ -726,42 +726,42 @@ static int download_gen2(LoggerCtrl& ctrl,
                 if (n >= 0) { total_dlc += n; ++patched_files; }
             }
             if (patched_files > 0)
-                printf("  [patch_dlc] %d fichier(s) corrigé(s), %d champ(s) DLC\n",
+                printf("  [patch_dlc] %d file(s) patched, %d DLC field(s) corrected\n",
                        patched_files, total_dlc);
         }
     }
 
-    // Vitesse moyenne globale
+    // Overall average speed
     if (!downloaded.empty() && total_rx_all > 0) {
         auto elapsed = std::chrono::duration<double>(
             std::chrono::steady_clock::now() - t_global_start).count();
         double avg_mbit = (elapsed > 0.0)
                           ? (double)total_rx_all * 8.0 / 1e6 / elapsed
                           : 0.0;
-        printf("  Vitesse moyenne globale : %.0f Mbit/s\n", avg_mbit);
+        printf("  Overall average speed: %.0f Mbit/s\n", avg_mbit);
     }
 
     if (g_abort) return 1;
 
-    // Suppression post-download
+    // Post-download deletion
     if (delete_after && !downloaded.empty()) {
-        printf("\n⚠  Suppression de %zu mesure(s) sur le logger...\n", downloaded.size());
+        printf("\n⚠  Deleting %zu measurement(s) from the logger...\n", downloaded.size());
         int rc_del = delete_gen2(ctrl, downloaded);
         if (rc_del != 0) {
-            fprintf(stderr, "Erreur : suppression échouée après download réussi.\n");
-            fprintf(stderr, "         Les fichiers téléchargés sont intacts dans '%s'.\n",
+            fprintf(stderr, "Error: deletion failed after successful download.\n");
+            fprintf(stderr, "       Downloaded files are intact in '%s'.\n",
                     dest_dir.c_str());
             return 1;
         }
-        printf("   Suppression terminée.\n");
+        printf("   Deletion complete.\n");
     }
 
     return 0;
 }
 
 // ---------------------------------------------------------------------------
-// Gen3 : engine::Copy (SelfOwned) + HddDirFinalMeasurement
-// Référence : samples Xoraya/download_all/download_all.cpp → copy_gen3()
+// Gen3: engine::Copy (SelfOwned) + HddDirFinalMeasurement
+// Reference: samples Xoraya/download_all/download_all.cpp → copy_gen3()
 // ---------------------------------------------------------------------------
 
 static int copy_gen3(LoggerCtrl& ctrl,
@@ -769,11 +769,11 @@ static int copy_gen3(LoggerCtrl& ctrl,
                       int index,
                       bool delete_after)
 {
-    // 1. Lire le répertoire HDD (Gen3 : FinalMeasurement)
+    // 1. Read HDD directory (Gen3: FinalMeasurement)
     cmd::HddDirFinalMeasurement hdd_dir;
     auto err = ctrl->DoCmd(hdd_dir);
     if (!err.IsNone()) {
-        fprintf(stderr, "Erreur : HddDirFinalMeasurement échoué : %s\n",
+        fprintf(stderr, "Error: HddDirFinalMeasurement failed: %s\n",
                 err.AsString().c_str());
         return 1;
     }
@@ -782,28 +782,28 @@ static int copy_gen3(LoggerCtrl& ctrl,
     size_t count = all.entries();
 
     if (count == 0) {
-        printf("Aucune mesure disponible.\n");
+        printf("No measurement available.\n");
         return 0;
     }
 
-    // 2. Sélectionner les mesures à copier
+    // 2. Select measurements to copy
     std::vector<hdd::FinalMeasurement> targets;
     if (index < 0) {
         targets.reserve(count);
         for (size_t i = 0; i < count; ++i)
             targets.push_back(all.get(i));
-        printf("Copie de %zu mesure(s)...\n", count);
+        printf("Copying %zu measurement(s)...\n", count);
     } else {
         if (static_cast<size_t>(index) >= count) {
-            fprintf(stderr, "Erreur : index %d hors bornes (0..%zu)\n",
+            fprintf(stderr, "Error: index %d out of range (0..%zu)\n",
                     index, count - 1);
             return 1;
         }
         targets.push_back(all.get(static_cast<size_t>(index)));
-        printf("Copie de la mesure %d...\n", index);
+        printf("Copying measurement %d...\n", index);
     }
 
-    // 3. Configurer l'engine de copie
+    // 3. Configure the copy engine
     engine::Copy cp;
     cp.setLCtrl(ctrl);
     cp.setMeasurements(targets);
@@ -814,37 +814,37 @@ static int copy_gen3(LoggerCtrl& ctrl,
     CopyProgress cb;
     cp.SetCallBackHandler(&cb);
 
-    // 4. Lancer la copie
+    // 4. Run the copy
     if (!cp.Run()) {
-        fprintf(stderr, "Erreur : engine::Copy::Run() échoué\n");
+        fprintf(stderr, "Error: engine::Copy::Run() failed\n");
         return 1;
     }
 
     auto state = cp.WaitForEndOfCopy();
     if (state != engine::Copy::CopyState::Done) {
-        fprintf(stderr, "Erreur : copie terminée avec état %d\n",
+        fprintf(stderr, "Error: copy finished with state %d\n",
                 static_cast<int>(state));
         return 1;
     }
 
-    // Suppression post-copie — uniquement si demandée et copie réussie
+    // Post-copy deletion — only if requested and copy succeeded
     if (delete_after) {
-        printf("\n⚠  Suppression de %zu mesure(s) sur le logger...\n", targets.size());
+        printf("\n⚠  Deleting %zu measurement(s) from the logger...\n", targets.size());
         int rc_del = delete_gen3(ctrl, targets);
         if (rc_del != 0) {
-            fprintf(stderr, "Erreur : suppression échouée après copie réussie.\n");
-            fprintf(stderr, "         Les fichiers copiés sont intacts dans '%s'.\n",
+            fprintf(stderr, "Error: deletion failed after successful copy.\n");
+            fprintf(stderr, "       Copied files are intact in '%s'.\n",
                     dest_dir.c_str());
             return 1;
         }
-        printf("   Suppression terminée.\n");
+        printf("   Deletion complete.\n");
     }
 
     return 0;
 }
 
 // ---------------------------------------------------------------------------
-// Point d'entrée public
+// Public entry point
 // ---------------------------------------------------------------------------
 
 int cmd_download(const std::string& device,
@@ -864,17 +864,17 @@ int cmd_download(const std::string& device,
 
     // 2. Connexion
     auto ctrl = LoggerClient::CreateCtrl(LoggerClient::LCT_Universal);
-    fprintf(stderr, "Connexion à '%s'...\n", device.c_str());
+    fprintf(stderr, "Connecting to '%s'...\n", device.c_str());
     auto err = ctrl->Connect(device);
     if (!err.IsNone()) {
-        fprintf(stderr, "Erreur : connexion à '%s' échouée : %s\n",
+        fprintf(stderr, "Error: connection to '%s' failed: %s\n",
                 device.c_str(), err.AsString().c_str());
         return 1;
     }
 
-    // Récupérer le nom réel du logger (ex: "DX11242-1") pour le nommage des fichiers.
-    // GetName() retourne le nom alias exposé par le SDK, indépendamment de l'identifiant
-    // passé à Connect() (IP ou nom réseau). Fallback sur device si l'appel échoue.
+    // Retrieve the real logger alias (e.g. "DX11242-1") for filename construction.
+    // GetName() returns the alias exposed by the SDK, regardless of the identifier
+    // passed to Connect() (IP or network name). Falls back to device on failure.
     std::string logger_name = device;
     {
         std::string tmp;
@@ -882,13 +882,13 @@ int cmd_download(const std::string& device,
         if (err_name == x2e::X2Error::NoError() && !tmp.empty())
             logger_name = tmp;
         else
-            fprintf(stderr, "Avertissement : GetName() échoué (code %d), utilisation de '%s'\n",
+            fprintf(stderr, "Warning: GetName() failed (code %d), using '%s'\n",
                     static_cast<int32_t>(err_name), device.c_str());
     }
 
     fprintf(stderr, "Connecté. Type : ");
 
-    // 3. Arrêt optionnel du logging (--stop-logging)
+    // 3. Optional logging stop (--stop-logging)
     bool had_to_stop = false;
     if (stop_logging) {
         if (!stop_logging_if_needed(ctrl, had_to_stop)) {
@@ -897,7 +897,7 @@ int cmd_download(const std::string& device,
         }
     }
 
-    // 4. Dispatch Gen2 / Gen3 selon le type détecté après connexion
+    // 4. Dispatch Gen2 / Gen3 based on type detected after connection
     int rc = 0;
     using TypeId = connection::ConnectionType::TypeId;
 
@@ -907,7 +907,7 @@ int cmd_download(const std::string& device,
         case TypeId::DLNcluster:
             fprintf(stderr, "Gen2 (engine::Download + MF4)\n");
             if (delete_after)
-                fprintf(stderr, "Mode : téléchargement + suppression après succès\n");
+                fprintf(stderr, "Mode: download + delete after success\n");
             rc = download_gen2(ctrl, logger_name, dest_dir, index, delete_after);
             break;
 
@@ -915,14 +915,14 @@ int cmd_download(const std::string& device,
         case TypeId::DataCubeNSeries:
             fprintf(stderr, "Gen3 (engine::Copy)\n");
             if (delete_after)
-                fprintf(stderr, "Mode : copie + suppression après succès\n");
+                fprintf(stderr, "Mode: copy + delete after success\n");
             rc = copy_gen3(ctrl, dest_dir, index, delete_after);
             break;
 
         default:
-            fprintf(stderr, "non supporté.\n");
-            fprintf(stderr, "Erreur : type de device non supporté pour le téléchargement.\n");
-            fprintf(stderr, "         Devices supportés : Gen2, DataCube, DLNcluster, Gen3, DataCubeNSeries.\n");
+            fprintf(stderr, "unsupported.\n");
+            fprintf(stderr, "Error: unsupported device type for download.\n");
+            fprintf(stderr, "       Supported types: Gen2, DataCube, DLNcluster, Gen3, DataCubeNSeries.\n");
             rc = 1;
             break;
     }
@@ -932,27 +932,27 @@ int cmd_download(const std::string& device,
 
     ctrl->Disconnect();
     if (rc == 0)
-        printf("\nFichiers disponibles dans : %s\n", dest_dir.c_str());
+        printf("\nFiles available in: %s\n", dest_dir.c_str());
     return rc;
 }
 
 // ===========================================================================
-// cmd_delete — Phase 4 : suppression manuelle ciblée
+// cmd_delete — Phase 4: targeted manual deletion
 // ===========================================================================
 
 int cmd_delete(const std::string& device, int index)
 {
     if (index < 0) {
-        fprintf(stderr, "Erreur : index invalide (%d). Un entier >= 0 est requis.\n", index);
+        fprintf(stderr, "Error: invalid index (%d). An integer >= 0 is required.\n", index);
         return 1;
     }
 
-    // 1. Connexion
+    // 1. Connect
     auto ctrl = LoggerClient::CreateCtrl(LoggerClient::LCT_Universal);
-    fprintf(stderr, "Connexion à '%s'...\n", device.c_str());
+    fprintf(stderr, "Connecting to '%s'...\n", device.c_str());
     auto err = ctrl->Connect(device);
     if (!err.IsNone()) {
-        fprintf(stderr, "Erreur : connexion à '%s' échouée : %s\n",
+        fprintf(stderr, "Error: connection to '%s' failed: %s\n",
                 device.c_str(), err.AsString().c_str());
         return 1;
     }
@@ -962,23 +962,23 @@ int cmd_delete(const std::string& device, int index)
 
     switch (ctrl->ConnectionType()) {
 
-        // ---- Gen2 : HddDeleteMeasurement ----
+        // ---- Gen2: HddDeleteMeasurement ----
         case TypeId::Generation_2:
         case TypeId::DataCube:
         case TypeId::DLNcluster: {
-            // Arrêter le logging pour accéder à l'HDD
+            // Stop logging to access the HDD
             bool had_to_stop = false;
             if (!stop_logging_if_needed(ctrl, had_to_stop)) {
                 ctrl->Disconnect();
                 return 1;
             }
 
-            // Lire le répertoire
+            // Read directory
             cmd::HddDirMeasurement hdd_dir;
             hdd_dir.enableShadow();
             err = ctrl->DoCmd(hdd_dir);
             if (!err.IsNone()) {
-                fprintf(stderr, "Erreur : HddDirMeasurement échoué : %s\n",
+                fprintf(stderr, "Error: HddDirMeasurement failed: %s\n",
                         err.AsString().c_str());
                 if (had_to_stop) restart_logging(ctrl);
                 ctrl->Disconnect();
@@ -989,33 +989,33 @@ int cmd_delete(const std::string& device, int index)
             size_t count = all.entries();
 
             if (static_cast<size_t>(index) >= count) {
-                fprintf(stderr, "Erreur : index %d hors bornes (0..%zu)\n",
+                fprintf(stderr, "Error: index %d out of range (0..%zu)\n",
                         index, count - 1);
                 if (had_to_stop) restart_logging(ctrl);
                 ctrl->Disconnect();
                 return 1;
             }
 
-            printf("⚠  Suppression de la mesure %d sur '%s'...\n",
+            printf("⚠  Deleting measurement %d from '%s'...\n",
                    index, device.c_str());
 
             std::vector<hdd::Measurement> target = { all.get(static_cast<size_t>(index)) };
             rc = delete_gen2(ctrl, target);
 
             if (rc == 0)
-                printf("   Mesure %d supprimée.\n", index);
+                printf("   Measurement %d deleted.\n", index);
 
             if (had_to_stop) restart_logging(ctrl);
             break;
         }
 
-        // ---- Gen3 : HddDeleteFinalMeasurement (plage temporelle) ----
+        // ---- Gen3: HddDeleteFinalMeasurement (time range) ----
         case TypeId::Generation_3:
         case TypeId::DataCubeNSeries: {
             cmd::HddDirFinalMeasurement hdd_dir;
             err = ctrl->DoCmd(hdd_dir);
             if (!err.IsNone()) {
-                fprintf(stderr, "Erreur : HddDirFinalMeasurement échoué : %s\n",
+                fprintf(stderr, "Error: HddDirFinalMeasurement failed: %s\n",
                         err.AsString().c_str());
                 ctrl->Disconnect();
                 return 1;
@@ -1025,25 +1025,25 @@ int cmd_delete(const std::string& device, int index)
             size_t count = all.entries();
 
             if (static_cast<size_t>(index) >= count) {
-                fprintf(stderr, "Erreur : index %d hors bornes (0..%zu)\n",
+                fprintf(stderr, "Error: index %d out of range (0..%zu)\n",
                         index, count - 1);
                 ctrl->Disconnect();
                 return 1;
             }
 
-            printf("⚠  Suppression de la mesure %d sur '%s'...\n",
+            printf("⚠  Deleting measurement %d from '%s'...\n",
                    index, device.c_str());
 
             std::vector<hdd::FinalMeasurement> target = { all.get(static_cast<size_t>(index)) };
             rc = delete_gen3(ctrl, target);
 
             if (rc == 0)
-                printf("   Mesure %d supprimée.\n", index);
+                printf("   Measurement %d deleted.\n", index);
             break;
         }
 
         default:
-            fprintf(stderr, "Erreur : type de device non supporté pour la suppression.\n");
+            fprintf(stderr, "Error: unsupported device type for deletion.\n");
             rc = 1;
             break;
     }

@@ -3,28 +3,28 @@
 #include <string>
 
 /**
- * Options pour la commande collect.
+ * Options for the collect command.
  */
 struct CollectOptions {
     std::string dest_dir     = "./downloads";
     bool        delete_after  = false;
-    int         interval_s    = -1;    // -1 = passe unique ; >0 = boucle
-    std::string device_filter;         // vide = tous ; sinon IP exacte
+    int         interval_s    = -1;    // -1 = single pass; >0 = loop
+    std::string device_filter;         // empty = all; otherwise exact IP
     bool        dry_run       = false;
     bool        verbose       = false;
-    bool        stop_logging  = false; // arrêter le logging pendant le download (opt-in)
+    bool        stop_logging  = false; // stop logging during download (opt-in)
 };
 
 /**
- * Scanne le réseau, télécharge les mesures de chaque logger trouvé.
+ * Scans the network and downloads measurements from each discovered logger.
  *
- * - Sans --interval : une seule passe, retourne 0 si tout réussit.
- * - Avec --interval : boucle infinie, interruptible par Ctrl+C (SIGINT).
- * - En cas d'erreur sur un logger : continue avec les suivants, retourne 1 à la fin.
- * - Aucun logger trouvé : message d'info, retourne 0 (pas une erreur).
- * - --dry-run : affiche ce qui serait fait, aucune action réseau/disque.
+ * - Without --interval: single pass, returns 0 if everything succeeds.
+ * - With --interval: infinite loop, interruptible via Ctrl+C (SIGINT).
+ * - On logger error: continues with remaining loggers, returns 1 at the end.
+ * - No logger found: informational message, returns 0 (not an error).
+ * - --dry-run: prints what would happen, no network/disk action.
  *
- * @param opts  Options de collect
- * @return      0 si tous les téléchargements ont réussi (ou dry-run), 1 sinon
+ * @param opts  Collect options
+ * @return      0 if all downloads succeeded (or dry-run), 1 otherwise
  */
 int cmd_collect(const CollectOptions& opts);

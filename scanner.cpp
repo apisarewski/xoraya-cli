@@ -1,13 +1,13 @@
 /**
- * scanner.cpp — Scan réseau pour loggers Xoraya
+ * scanner.cpp — Network scan for Xoraya loggers
  *
- * Basé sur : samples Xoraya/scan/main.cpp
- * API SDK  : CScansCommand (x2e/scans_Command.h)
- *            CLoggerBCAnswerMsg (x2e/scans_message.h)
- *            ip::v4::Address (x2e/Connection.h)
+ * Based on: samples Xoraya/scan/main.cpp
+ * SDK API : CScansCommand (x2e/scans_Command.h)
+ *           CLoggerBCAnswerMsg (x2e/scans_message.h)
+ *           ip::v4::Address (x2e/Connection.h)
  *
- * Note : ne pas définir X2E_XorayaWin32_DYN_LINKING_AUTO —
- *        on lie directement avec -lxorayasdk via le Makefile.
+ * Note: do not define X2E_XorayaWin32_DYN_LINKING_AUTO —
+ *       link directly with -lxorayasdk via the Makefile.
  */
 
 #include "scanner.hpp"
@@ -22,7 +22,7 @@ using namespace x2e;
 using namespace x2e::logger::connection;
 
 // ---------------------------------------------------------------------------
-// Helpers locaux
+// Local helpers
 // ---------------------------------------------------------------------------
 
 static const char* ct_to_string(ConnectionType::TypeId::type_t id)
@@ -40,7 +40,7 @@ static const char* ct_to_string(ConnectionType::TypeId::type_t id)
 }
 
 // ---------------------------------------------------------------------------
-// API publique
+// Public API
 // ---------------------------------------------------------------------------
 
 std::vector<LoggerInfo> scan_network(int timeout_ms)
@@ -48,7 +48,7 @@ std::vector<LoggerInfo> scan_network(int timeout_ms)
     std::vector<LoggerInfo> result;
 
     CScansCommand scanner;
-    // Start() bloque pendant timeout_ms puis retourne
+    // Start() blocks for timeout_ms then returns
     scanner.Start(static_cast<size_t>(timeout_ms));
 
     for (const auto& msg : scanner.Result())
@@ -59,7 +59,7 @@ std::vector<LoggerInfo> scan_network(int timeout_ms)
         info.state    = LoggerState::toFriendly(msg.getState());
         info.type     = ct_to_string(msg.getConnectionType());
 
-        // getIP() retourne un uint32_t (network byte order → Address gère la conversion)
+        // getIP() returns a uint32_t (network byte order → Address handles the conversion)
         info.ip = ip::v4::Address(msg.getIP()).to_string();
 
         result.push_back(std::move(info));
