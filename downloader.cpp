@@ -633,7 +633,7 @@ static int download_gen2(LoggerCtrl& ctrl,
                                 + "-" + format_ts(m.GetTimeEndHiRes())
                                 + (is_snapshot ? "_snapshot" : "");
 
-        printf("\n  → Measurement %zu\n", (index < 0 ? i : static_cast<size_t>(index)));
+        printf("\n  → Measurement %zu\n", (index < 0 ? count - 1 - i : static_cast<size_t>(index)));
 
         // SetProperty AFTER AddFilter — identical to XorayaConnection
         filter->SetProperty("Filename",       base_path);
