@@ -763,7 +763,8 @@ static int download_gen2(LoggerCtrl& ctrl,
 static int copy_gen3(LoggerCtrl& ctrl,
                       const std::string& dest_dir,
                       int index,
-                      bool delete_after)
+                      bool delete_after,
+                      int last_n = -1)
 {
     // 1. Read HDD directory (Gen3: FinalMeasurement)
     cmd::HddDirFinalMeasurement hdd_dir;
@@ -785,10 +786,13 @@ static int copy_gen3(LoggerCtrl& ctrl,
     // 2. Select measurements to copy
     std::vector<hdd::FinalMeasurement> targets;
     if (index < 0) {
-        targets.reserve(count);
-        for (size_t i = 0; i < count; ++i)
+        size_t start = (last_n > 0 && static_cast<size_t>(last_n) < count)
+                       ? count - static_cast<size_t>(last_n)
+                       : 0;
+        targets.reserve(count - start);
+        for (size_t i = count; i-- > start; )
             targets.push_back(all.get(i));
-        printf("Copying %zu measurement(s)...\n", count);
+        printf("Copying %zu measurement(s)...\n", targets.size());
     } else {
         if (static_cast<size_t>(index) >= count) {
             fprintf(stderr, "Error: index %d out of range (0..%zu)\n",
