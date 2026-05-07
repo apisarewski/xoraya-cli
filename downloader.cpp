@@ -851,7 +851,8 @@ int cmd_download(const std::string& device,
                  const std::string& dest_dir,
                  int index,
                  bool delete_after,
-                 bool stop_logging)
+                 bool stop_logging,
+                 int last_n)
 {
     // 1. Créer le répertoire de destination si nécessaire
     std::error_code ec;
@@ -923,12 +924,12 @@ int cmd_download(const std::string& device,
         case TypeId::Generation_2:
         case TypeId::DataCube:
         case TypeId::DLNcluster:
-            rc = download_gen2(ctrl, logger_name, dest_dir, index, delete_after);
+            rc = download_gen2(ctrl, logger_name, dest_dir, index, delete_after, last_n);
             break;
 
         case TypeId::Generation_3:
         case TypeId::DataCubeNSeries:
-            rc = copy_gen3(ctrl, dest_dir, index, delete_after);
+            rc = copy_gen3(ctrl, dest_dir, index, delete_after, last_n);
             break;
 
         default:

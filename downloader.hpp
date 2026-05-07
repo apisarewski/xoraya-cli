@@ -38,7 +38,8 @@ int cmd_download(const std::string& device,
                  const std::string& dest_dir,
                  int index = -1,
                  bool delete_after = false,
-                 bool stop_logging = false);
+                 bool stop_logging = false,
+                 int last_n = -1);
 
 /**
  * Deletes a measurement by index from the logger.
