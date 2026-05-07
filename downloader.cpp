@@ -725,6 +725,19 @@ static int download_gen2(LoggerCtrl& ctrl,
                 printf("  [patch_dlc] %d file(s) patched, %d DLC field(s) corrected\n",
                        patched_files, total_dlc);
         }
+
+        // Delete immediately after each successful download + patch
+        if (delete_after) {
+            std::vector<hdd::Measurement> single = { m };
+            int rc_del = delete_gen2(ctrl, single);
+            if (rc_del != 0) {
+                fprintf(stderr, "Error: deletion failed after successful download.\n");
+                fprintf(stderr, "       Downloaded file is intact in '%s'.\n",
+                        dest_dir.c_str());
+                return 1;
+            }
+            printf("  ✓ Deleted from logger.\n");
+        }
     }
 
     // Overall average speed
@@ -735,21 +748,6 @@ static int download_gen2(LoggerCtrl& ctrl,
                           ? (double)total_rx_all * 8.0 / 1e6 / elapsed
                           : 0.0;
         printf("  Overall average speed: %.0f Mbit/s\n", avg_mbit);
-    }
-
-    if (g_abort) return 1;
-
-    // Post-download deletion
-    if (delete_after && !downloaded.empty()) {
-        printf("\n⚠  Deleting %zu measurement(s) from the logger...\n", downloaded.size());
-        int rc_del = delete_gen2(ctrl, downloaded);
-        if (rc_del != 0) {
-            fprintf(stderr, "Error: deletion failed after successful download.\n");
-            fprintf(stderr, "       Downloaded files are intact in '%s'.\n",
-                    dest_dir.c_str());
-            return 1;
-        }
-        printf("   Deletion complete.\n");
     }
 
     return 0;
