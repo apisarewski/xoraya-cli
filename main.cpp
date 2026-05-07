@@ -202,7 +202,7 @@ int main(int argc, char** argv)
 
     if (strcmp(cmd, "download") == 0) {
         if (argc < 4) {
-            fprintf(stderr, "Usage: %s download <device> <dest_dir> [N]\n", argv[0]);
+            fprintf(stderr, "Usage: %s download <device> <dest_dir> [N] [--delete-after-download] [--stop-logging] [--last N]\n", argv[0]);
             return 1;
         }
         // argv[2] = device, argv[3] = dest_dir, argv[4] (optional) = N
