@@ -687,6 +687,16 @@ static int download_gen2(LoggerCtrl& ctrl,
 
             uint64_t final_rx  = ctrl->GetCnt(ILoggerCtrl::CId_BytesRx);
             uint64_t final_max = ctrl->GetCnt(ILoggerCtrl::CId_BytesRx_Max);
+
+            if (final_max > 0 && final_rx < final_max) {
+                printf("\r%30s\r", "");
+                fprintf(stderr, "  Error: incomplete transfer — received %llu / %llu bytes.\n"
+                                "         Logger may have disconnected. Measurement kept on logger.\n",
+                        (unsigned long long)final_rx,
+                        (unsigned long long)final_max);
+                return 1;
+            }
+
             total_rx_all += final_rx;
             printf("\r  ✓  %llu / %llu bytes%30s\n",
                    (unsigned long long)final_rx,
