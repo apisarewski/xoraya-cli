@@ -34,10 +34,11 @@ static void print_help(const char* prog)
     printf("      Scans the local network and lists available Xoraya loggers.\n\n");
     printf("  list <device>\n");
     printf("      Lists measurements stored on the HDD of logger <device>.\n\n");
-    printf("  download <device> <dest_dir> [N] [--delete-after-download] [--stop-logging] [--last N]\n");
-    printf("      Downloads all measurements (or measurement N) to <dest_dir>.\n");
+    printf("  download <device> [dest_dir] [N] [--delete-after-download] [--stop-logging] [--last N]\n");
+    printf("      Downloads all measurements (or measurement N) to dest_dir.\n");
+    printf("      dest_dir defaults to /home/Dexterlogs when omitted.\n");
     printf("      By default: non-destructive. No measurement is deleted.\n");
-    printf("      With --delete-after-download: delete after successful download only.\n");
+    printf("      With --delete-after-download: delete each measurement immediately after download.\n");
     printf("      With --stop-logging: stop logging during download, restart it afterwards.\n");
     printf("      With --last N: download only the N most recent measurements.\n\n");
     printf("  delete <device> <N>\n");
@@ -58,10 +59,12 @@ static void print_help(const char* prog)
     printf("\nExamples:\n");
     printf("  %s scan\n", prog);
     printf("  %s list XORAYA-001\n", prog);
+    printf("  %s download XORAYA-001\n", prog);
     printf("  %s download XORAYA-001 /tmp/logs\n", prog);
     printf("  %s download XORAYA-001 /tmp/logs 2\n", prog);
+    printf("  %s download XORAYA-001 --last 5\n", prog);
+    printf("  %s download XORAYA-001 --delete-after-download\n", prog);
     printf("  %s download XORAYA-001 /tmp/logs --delete-after-download\n", prog);
-    printf("  %s download XORAYA-001 /tmp/logs 2 --delete-after-download\n", prog);
     printf("  %s delete  XORAYA-001 2\n", prog);
     printf("  %s collect\n", prog);
     printf("  %s collect --dest /tmp/logs\n", prog);
@@ -115,16 +118,29 @@ static int cmd_list(const char* device)
 
 static int cmd_download(int argc, char** argv)
 {
-    // argv[0] = device, argv[1] = dest_dir
-    // argv[2..] = optional: [N] [--delete-after-download] [--stop-logging] [--last N] (any order)
-    const std::string device   = argv[0];
-    const std::string dest_dir = argv[1];
+    // argv[0] = device
+    // argv[1] (optional): dest_dir if it is not a flag and not a bare integer,
+    //                     otherwise defaults to /home/Dexterlogs
+    // remaining: [N] [--delete-after-download] [--stop-logging] [--last N] (any order)
+    const std::string device = argv[0];
+    std::string dest_dir = "/home/Dexterlogs";
+    int  start        = 1;
     int  index        = -1;
     bool delete_after = false;
     bool stop_logging = false;
     int  last_n       = -1;
 
-    for (int i = 2; i < argc; ++i) {
+    if (argc > 1 && argv[1][0] != '-') {
+        char* end = nullptr;
+        strtol(argv[1], &end, 10);
+        if (*end != '\0') {
+            // Not a pure integer → treat as destination directory
+            dest_dir = argv[1];
+            start = 2;
+        }
+    }
+
+    for (int i = start; i < argc; ++i) {
         if (strcmp(argv[i], "--delete-after-download") == 0) {
             delete_after = true;
         } else if (strcmp(argv[i], "--stop-logging") == 0) {
@@ -146,7 +162,7 @@ static int cmd_download(int argc, char** argv)
             long n = strtol(argv[i], &end, 10);
             if (*end != '\0' || n < 0) {
                 fprintf(stderr, "Error: unrecognized argument '%s'.\n", argv[i]);
-                fprintf(stderr, "Usage: download <device> <dest_dir> [N] [--delete-after-download] [--stop-logging] [--last N]\n");
+                fprintf(stderr, "Usage: download <device> [dest_dir] [N] [--delete-after-download] [--stop-logging] [--last N]\n");
                 return 1;
             }
             index = static_cast<int>(n);
@@ -201,11 +217,11 @@ int main(int argc, char** argv)
     }
 
     if (strcmp(cmd, "download") == 0) {
-        if (argc < 4) {
-            fprintf(stderr, "Usage: %s download <device> <dest_dir> [N] [--delete-after-download] [--stop-logging] [--last N]\n", argv[0]);
+        if (argc < 3) {
+            fprintf(stderr, "Usage: %s download <device> [dest_dir] [N] [--delete-after-download] [--stop-logging] [--last N]\n", argv[0]);
             return 1;
         }
-        // argv[2] = device, argv[3] = dest_dir, argv[4] (optional) = N
+        // argv[2] = device, argv[3..] = optional dest_dir, N, flags
         return cmd_download(argc - 2, argv + 2);
     }
 

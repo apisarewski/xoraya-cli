@@ -468,7 +468,7 @@
 
   <div class="cmd-card">
     <div class="cmd-card-head">
-      <span class="name">xoraya-cli download &lt;device&gt; &lt;dest_dir&gt; [N] [--delete-after-download] [--stop-logging] [--last N]</span>
+      <span class="name">xoraya-cli download &lt;device&gt; [dest_dir] [N] [--delete-after-download] [--stop-logging] [--last N]</span>
       <span class="desc">Download measurements to a local directory</span>
     </div>
     <div class="cmd-card-body">
@@ -476,7 +476,7 @@
       <table>
         <tr><th>Argument</th><th>Required</th><th>Description</th></tr>
         <tr><td><code>&lt;device&gt;</code></td><td>Yes</td><td>Logger alias name or IP address</td></tr>
-        <tr><td><code>&lt;dest_dir&gt;</code></td><td>Yes</td><td>Local destination directory (created automatically)</td></tr>
+        <tr><td><code>dest_dir</code></td><td>No</td><td>Local destination directory (created automatically). Defaults to <code>/home/Dexterlogs</code>.</td></tr>
         <tr><td><code>N</code></td><td>No</td><td>Index of a specific measurement. Omit to download all. Mutually exclusive with <code>--last</code>.</td></tr>
         <tr><td><code>--delete-after-download</code></td><td>No</td><td>Delete each measurement from the logger immediately after it is successfully downloaded</td></tr>
         <tr><td><code>--stop-logging</code></td><td>No</td><td>Stop the logger's recording before downloading, restart it afterwards</td></tr>
@@ -484,20 +484,23 @@
       </table>
 
       <h4>Examples</h4>
-<pre><code><span class="cmt"># Download all measurements (newest first)</span>
+<pre><code><span class="cmt"># Download all measurements to /home/Dexterlogs (default)</span>
+<span class="cmd">./xoraya-cli download DX11252-2</span>
+
+<span class="cmt"># Download all measurements to a specific directory</span>
 <span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs</span>
 
-<span class="cmt"># Download only the 3 most recent measurements</span>
-<span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs --last 3</span>
+<span class="cmt"># Download only the 3 most recent measurements (default dest)</span>
+<span class="cmd">./xoraya-cli download DX11252-2 --last 3</span>
 
 <span class="cmt"># Download measurement at index 7 only</span>
 <span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs 7</span>
 
 <span class="cmt"># Download all, delete each one from the logger as it finishes</span>
-<span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs --delete-after-download</span>
+<span class="cmd">./xoraya-cli download DX11252-2 --delete-after-download</span>
 
 <span class="cmt"># Download the 5 newest, delete each immediately, without interrupting recording</span>
-<span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs --last 5 --delete-after-download --stop-logging</span></code></pre>
+<span class="cmd">./xoraya-cli download DX11252-2 --last 5 --delete-after-download --stop-logging</span></code></pre>
 
       <h4>Example output (Gen2, <code>--last 3 --delete-after-download</code>)</h4>
 <pre><code>Connecting to 'DX11252-2'...
