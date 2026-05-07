@@ -568,7 +568,8 @@ static int download_gen2(LoggerCtrl& ctrl,
                           const std::string& device_name,
                           const std::string& dest_dir,
                           int index,
-                          bool delete_after)
+                          bool delete_after,
+                          int last_n = -1)
 {
     cmd::HddDirMeasurement hdd_dir;
     hdd_dir.enableShadow(); // merge stream_queue + default_queue into one measurement (prevents extra AT blocks in MF4)
@@ -590,10 +591,13 @@ static int download_gen2(LoggerCtrl& ctrl,
     // 2. Select measurements
     std::vector<hdd::Measurement> targets;
     if (index < 0) {
-        targets.reserve(count);
-        for (size_t i = 0; i < count; ++i)
+        size_t start = (last_n > 0 && static_cast<size_t>(last_n) < count)
+                       ? count - static_cast<size_t>(last_n)
+                       : 0;
+        targets.reserve(count - start);
+        for (size_t i = count; i-- > start; )
             targets.push_back(all.get(i));
-        printf("Downloading %zu measurement(s)...\n", count);
+        printf("Downloading %zu measurement(s)...\n", targets.size());
     } else {
         if (static_cast<size_t>(index) >= count) {
             fprintf(stderr, "Error: index %d out of range (0..%zu)\n",
