@@ -34,23 +34,25 @@ static void print_help(const char* prog)
     printf("      Scans the local network and lists available Xoraya loggers.\n\n");
     printf("  list <device>\n");
     printf("      Lists measurements stored on the HDD of logger <device>.\n\n");
-    printf("  download <device> <dest_dir> [N] [--delete-after-download] [--stop-logging]\n");
+    printf("  download <device> <dest_dir> [N] [--delete-after-download] [--stop-logging] [--last N]\n");
     printf("      Downloads all measurements (or measurement N) to <dest_dir>.\n");
     printf("      By default: non-destructive. No measurement is deleted.\n");
     printf("      With --delete-after-download: delete after successful download only.\n");
-    printf("      With --stop-logging: stop logging during download, restart it afterwards.\n\n");
+    printf("      With --stop-logging: stop logging during download, restart it afterwards.\n");
+    printf("      With --last N: download only the N most recent measurements.\n\n");
     printf("  delete <device> <N>\n");
     printf("      Manually deletes measurement at index N from the logger.\n\n");
     printf("  collect [options]\n");
     printf("      Scans the network and downloads measurements from all loggers.\n");
     printf("      Options:\n");
-    printf("        --dest <dir>              Destination folder (default: ./downloads)\n");
+    printf("        --dest <dir>              Destination folder (default: /home/Dexterlogs)\n");
     printf("        --delete-after-download   Delete measurements after successful download\n");
     printf("        --interval <s>            Loop indefinitely, re-scanning every N seconds (N > 0)\n");
     printf("        --device <ip>             Restrict to one logger by exact IP\n");
     printf("        --dry-run                 Show what would happen without downloading\n");
     printf("        --verbose                 Show detailed per-measurement progress\n");
-    printf("        --stop-logging            Stop logging during download, restart it afterwards\n\n");
+    printf("        --stop-logging            Stop logging during download, restart it afterwards\n");
+    printf("        --last <N>                Download only the N most recent measurements (N >= 1)\n\n");
     printf("Options:\n");
     printf("  --help, -h    Display this help.\n");
     printf("\nExamples:\n");
@@ -114,31 +116,49 @@ static int cmd_list(const char* device)
 static int cmd_download(int argc, char** argv)
 {
     // argv[0] = device, argv[1] = dest_dir
-    // argv[2..] = optional: [N] [--delete-after-download] [--stop-logging] (any order)
+    // argv[2..] = optional: [N] [--delete-after-download] [--stop-logging] [--last N] (any order)
     const std::string device   = argv[0];
     const std::string dest_dir = argv[1];
     int  index        = -1;
     bool delete_after = false;
     bool stop_logging = false;
+    int  last_n       = -1;
 
     for (int i = 2; i < argc; ++i) {
         if (strcmp(argv[i], "--delete-after-download") == 0) {
             delete_after = true;
         } else if (strcmp(argv[i], "--stop-logging") == 0) {
             stop_logging = true;
+        } else if (strcmp(argv[i], "--last") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "Error: --last requires an argument.\n");
+                return 1;
+            }
+            char* end = nullptr;
+            long n = strtol(argv[++i], &end, 10);
+            if (*end != '\0' || n < 1) {
+                fprintf(stderr, "Error: --last must be an integer >= 1.\n");
+                return 1;
+            }
+            last_n = static_cast<int>(n);
         } else {
             char* end = nullptr;
             long n = strtol(argv[i], &end, 10);
             if (*end != '\0' || n < 0) {
                 fprintf(stderr, "Error: unrecognized argument '%s'.\n", argv[i]);
-                fprintf(stderr, "Usage: download <device> <dest_dir> [N] [--delete-after-download] [--stop-logging]\n");
+                fprintf(stderr, "Usage: download <device> <dest_dir> [N] [--delete-after-download] [--stop-logging] [--last N]\n");
                 return 1;
             }
             index = static_cast<int>(n);
         }
     }
 
-    return ::cmd_download(device, dest_dir, index, delete_after, stop_logging);
+    if (index >= 0 && last_n >= 1) {
+        fprintf(stderr, "Error: a specific index and --last are mutually exclusive.\n");
+        return 1;
+    }
+
+    return ::cmd_download(device, dest_dir, index, delete_after, stop_logging, last_n);
 }
 
 static int cmd_delete(const char* device, const char* index_str)
@@ -182,7 +202,7 @@ int main(int argc, char** argv)
 
     if (strcmp(cmd, "download") == 0) {
         if (argc < 4) {
-            fprintf(stderr, "Usage: %s download <device> <dest_dir> [N]\n", argv[0]);
+            fprintf(stderr, "Usage: %s download <device> <dest_dir> [N] [--delete-after-download] [--stop-logging] [--last N]\n", argv[0]);
             return 1;
         }
         // argv[2] = device, argv[3] = dest_dir, argv[4] (optional) = N
@@ -232,10 +252,23 @@ int main(int argc, char** argv)
                     return 1;
                 }
                 opts.device_filter = argv[++i];
+            } else if (strcmp(argv[i], "--last") == 0) {
+                if (i + 1 >= argc) {
+                    fprintf(stderr, "Error: --last requires an argument.\n");
+                    return 1;
+                }
+                char* end = nullptr;
+                long n = strtol(argv[++i], &end, 10);
+                if (*end != '\0' || n < 1) {
+                    fprintf(stderr, "Error: --last must be an integer >= 1.\n");
+                    return 1;
+                }
+                opts.last_n = static_cast<int>(n);
             } else {
                 fprintf(stderr, "Error: unrecognized argument '%s'.\n", argv[i]);
                 fprintf(stderr, "Usage: %s collect [--dest <dir>] [--delete-after-download] "
-                                "[--interval <s>] [--device <ip>] [--dry-run] [--verbose] [--stop-logging]\n", argv[0]);
+                                "[--interval <s>] [--device <ip>] [--dry-run] [--verbose] "
+                                "[--stop-logging] [--last N]\n", argv[0]);
                 return 1;
             }
         }

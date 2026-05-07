@@ -6,13 +6,14 @@
  * Options for the collect command.
  */
 struct CollectOptions {
-    std::string dest_dir     = "./downloads";
+    std::string dest_dir     = "/home/Dexterlogs";
     bool        delete_after  = false;
     int         interval_s    = -1;    // -1 = single pass; >0 = loop
     std::string device_filter;         // empty = all; otherwise exact IP
     bool        dry_run       = false;
     bool        verbose       = false;
     bool        stop_logging  = false; // stop logging during download (opt-in)
+    int         last_n        = -1;    // -1 = all; >0 = only the N most recent
 };
 
 /**

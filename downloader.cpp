@@ -568,7 +568,8 @@ static int download_gen2(LoggerCtrl& ctrl,
                           const std::string& device_name,
                           const std::string& dest_dir,
                           int index,
-                          bool delete_after)
+                          bool delete_after,
+                          int last_n = -1)
 {
     cmd::HddDirMeasurement hdd_dir;
     hdd_dir.enableShadow(); // merge stream_queue + default_queue into one measurement (prevents extra AT blocks in MF4)
@@ -590,10 +591,13 @@ static int download_gen2(LoggerCtrl& ctrl,
     // 2. Select measurements
     std::vector<hdd::Measurement> targets;
     if (index < 0) {
-        targets.reserve(count);
-        for (size_t i = 0; i < count; ++i)
+        size_t start = (last_n > 0 && static_cast<size_t>(last_n) < count)
+                       ? count - static_cast<size_t>(last_n)
+                       : 0;
+        targets.reserve(count - start);
+        for (size_t i = count; i-- > start; )
             targets.push_back(all.get(i));
-        printf("Downloading %zu measurement(s)...\n", count);
+        printf("Downloading %zu measurement(s)...\n", targets.size());
     } else {
         if (static_cast<size_t>(index) >= count) {
             fprintf(stderr, "Error: index %d out of range (0..%zu)\n",
@@ -629,7 +633,7 @@ static int download_gen2(LoggerCtrl& ctrl,
                                 + "-" + format_ts(m.GetTimeEndHiRes())
                                 + (is_snapshot ? "_snapshot" : "");
 
-        printf("\n  → Measurement %zu\n", (index < 0 ? i : static_cast<size_t>(index)));
+        printf("\n  → Measurement %zu\n", (index < 0 ? count - 1 - i : static_cast<size_t>(index)));
 
         // SetProperty AFTER AddFilter — identical to XorayaConnection
         filter->SetProperty("Filename",       base_path);
@@ -721,6 +725,19 @@ static int download_gen2(LoggerCtrl& ctrl,
                 printf("  [patch_dlc] %d file(s) patched, %d DLC field(s) corrected\n",
                        patched_files, total_dlc);
         }
+
+        // Delete immediately after each successful download + patch
+        if (delete_after) {
+            std::vector<hdd::Measurement> single = { m };
+            int rc_del = delete_gen2(ctrl, single);
+            if (rc_del != 0) {
+                fprintf(stderr, "Error: deletion failed after successful download.\n");
+                fprintf(stderr, "       Downloaded file is intact in '%s'.\n",
+                        dest_dir.c_str());
+                return 1;
+            }
+            printf("  ✓ Deleted from logger.\n");
+        }
     }
 
     // Overall average speed
@@ -731,21 +748,6 @@ static int download_gen2(LoggerCtrl& ctrl,
                           ? (double)total_rx_all * 8.0 / 1e6 / elapsed
                           : 0.0;
         printf("  Overall average speed: %.0f Mbit/s\n", avg_mbit);
-    }
-
-    if (g_abort) return 1;
-
-    // Post-download deletion
-    if (delete_after && !downloaded.empty()) {
-        printf("\n⚠  Deleting %zu measurement(s) from the logger...\n", downloaded.size());
-        int rc_del = delete_gen2(ctrl, downloaded);
-        if (rc_del != 0) {
-            fprintf(stderr, "Error: deletion failed after successful download.\n");
-            fprintf(stderr, "       Downloaded files are intact in '%s'.\n",
-                    dest_dir.c_str());
-            return 1;
-        }
-        printf("   Deletion complete.\n");
     }
 
     return 0;
@@ -759,7 +761,8 @@ static int download_gen2(LoggerCtrl& ctrl,
 static int copy_gen3(LoggerCtrl& ctrl,
                       const std::string& dest_dir,
                       int index,
-                      bool delete_after)
+                      bool delete_after,
+                      int last_n = -1)
 {
     // 1. Read HDD directory (Gen3: FinalMeasurement)
     cmd::HddDirFinalMeasurement hdd_dir;
@@ -781,10 +784,13 @@ static int copy_gen3(LoggerCtrl& ctrl,
     // 2. Select measurements to copy
     std::vector<hdd::FinalMeasurement> targets;
     if (index < 0) {
-        targets.reserve(count);
-        for (size_t i = 0; i < count; ++i)
+        size_t start = (last_n > 0 && static_cast<size_t>(last_n) < count)
+                       ? count - static_cast<size_t>(last_n)
+                       : 0;
+        targets.reserve(count - start);
+        for (size_t i = count; i-- > start; )
             targets.push_back(all.get(i));
-        printf("Copying %zu measurement(s)...\n", count);
+        printf("Copying %zu measurement(s)...\n", targets.size());
     } else {
         if (static_cast<size_t>(index) >= count) {
             fprintf(stderr, "Error: index %d out of range (0..%zu)\n",
@@ -843,7 +849,8 @@ int cmd_download(const std::string& device,
                  const std::string& dest_dir,
                  int index,
                  bool delete_after,
-                 bool stop_logging)
+                 bool stop_logging,
+                 int last_n)
 {
     // 1. Créer le répertoire de destination si nécessaire
     std::error_code ec;
@@ -915,12 +922,12 @@ int cmd_download(const std::string& device,
         case TypeId::Generation_2:
         case TypeId::DataCube:
         case TypeId::DLNcluster:
-            rc = download_gen2(ctrl, logger_name, dest_dir, index, delete_after);
+            rc = download_gen2(ctrl, logger_name, dest_dir, index, delete_after, last_n);
             break;
 
         case TypeId::Generation_3:
         case TypeId::DataCubeNSeries:
-            rc = copy_gen3(ctrl, dest_dir, index, delete_after);
+            rc = copy_gen3(ctrl, dest_dir, index, delete_after, last_n);
             break;
 
         default:
