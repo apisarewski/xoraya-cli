@@ -468,7 +468,7 @@
 
   <div class="cmd-card">
     <div class="cmd-card-head">
-      <span class="name">xoraya-cli download &lt;device&gt; &lt;dest_dir&gt; [N] [--delete-after-download]</span>
+      <span class="name">xoraya-cli download &lt;device&gt; &lt;dest_dir&gt; [N] [--delete-after-download] [--stop-logging] [--last N]</span>
       <span class="desc">Download measurements to a local directory</span>
     </div>
     <div class="cmd-card-body">
@@ -477,45 +477,66 @@
         <tr><th>Argument</th><th>Required</th><th>Description</th></tr>
         <tr><td><code>&lt;device&gt;</code></td><td>Yes</td><td>Logger alias name or IP address</td></tr>
         <tr><td><code>&lt;dest_dir&gt;</code></td><td>Yes</td><td>Local destination directory (created automatically)</td></tr>
-        <tr><td><code>N</code></td><td>No</td><td>Index of a specific measurement. Omit to download all.</td></tr>
-        <tr><td><code>--delete-after-download</code></td><td>No</td><td>Delete from logger after a successful download</td></tr>
+        <tr><td><code>N</code></td><td>No</td><td>Index of a specific measurement. Omit to download all. Mutually exclusive with <code>--last</code>.</td></tr>
+        <tr><td><code>--delete-after-download</code></td><td>No</td><td>Delete each measurement from the logger immediately after it is successfully downloaded</td></tr>
+        <tr><td><code>--stop-logging</code></td><td>No</td><td>Stop the logger's recording before downloading, restart it afterwards</td></tr>
+        <tr><td><code>--last &lt;N&gt;</code></td><td>No</td><td>Download only the <em>N</em> most recent measurements (N ≥ 1). Mutually exclusive with a specific index.</td></tr>
       </table>
 
       <h4>Examples</h4>
-<pre><code><span class="cmt"># Download all measurements</span>
+<pre><code><span class="cmt"># Download all measurements (newest first)</span>
 <span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs</span>
+
+<span class="cmt"># Download only the 3 most recent measurements</span>
+<span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs --last 3</span>
 
 <span class="cmt"># Download measurement at index 7 only</span>
 <span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs 7</span>
 
-<span class="cmt"># Download all and delete afterwards</span>
+<span class="cmt"># Download all, delete each one from the logger as it finishes</span>
 <span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs --delete-after-download</span>
 
-<span class="cmt"># Download measurement 2 and delete it afterwards</span>
-<span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs 2 --delete-after-download</span></code></pre>
+<span class="cmt"># Download the 5 newest, delete each immediately, without interrupting recording</span>
+<span class="cmd">./xoraya-cli download DX11252-2 /tmp/logs --last 5 --delete-after-download --stop-logging</span></code></pre>
 
-      <h4>Example output (Gen2)</h4>
+      <h4>Example output (Gen2, <code>--last 3 --delete-after-download</code>)</h4>
 <pre><code>Connecting to 'DX11252-2'...
 Connected. Type: Gen2 (engine::Download + MF4)
 Downloading <span class="num">3</span> measurement(s)...
 
-  → Measurement 0
+  → Measurement <span class="num">4</span>
    <span class="num">45.2</span>%  <span class="num">12</span> Mbit/s
   <span class="ok">✓  52466504 / 52466504 bytes</span>
   [patch_dlc] <span class="num">11</span> file(s) patched, <span class="num">13573945</span> DLC field(s)
+  <span class="ok">✓ Deleted from logger.</span>
 
-  → Measurement 1
+  → Measurement <span class="num">3</span>
   <span class="ok">✓  24100000 / 24100000 bytes</span>
   [patch_dlc] <span class="num">5</span> file(s) patched, <span class="num">5894321</span> DLC field(s)
+  <span class="ok">✓ Deleted from logger.</span>
+
+  → Measurement <span class="num">2</span>
+  <span class="ok">✓  18300000 / 18300000 bytes</span>
+  [patch_dlc] <span class="num">4</span> file(s) patched, <span class="num">4210000</span> DLC field(s)
+  <span class="ok">✓ Deleted from logger.</span>
 
   Overall average speed: <span class="num">10</span> Mbit/s
 
 Files available in: /tmp/logs</code></pre>
 
       <div class="callout ok">
+        <strong>Newest first</strong>
+        Measurements are always downloaded in reverse chronological order — the most
+        recent measurement is transferred first. This ensures that the latest data is
+        safe locally even if a download is interrupted.
+      </div>
+
+      <div class="callout ok">
         <strong>Non-destructive by default</strong>
         <code>--delete-after-download</code> must be passed explicitly. Without it, no
-        measurement is ever deleted from the logger.
+        measurement is ever deleted from the logger. When the flag is set, each
+        measurement is deleted individually right after its download and DLC-patch
+        complete — logger storage is freed progressively, not in a batch at the end.
       </div>
 
       <div class="callout warn">
@@ -570,10 +591,10 @@ Files available in: /tmp/logs</code></pre>
 
       <table>
         <tr><th>Option</th><th>Default</th><th>Description</th></tr>
-        <tr><td><code>--dest &lt;dir&gt;</code></td><td><code>./downloads</code></td>
+        <tr><td><code>--dest &lt;dir&gt;</code></td><td><code>/home/Dexterlogs</code></td>
             <td>Destination directory (created if absent)</td></tr>
         <tr><td><code>--delete-after-download</code></td><td>off</td>
-            <td>Delete measurements from logger after successful download</td></tr>
+            <td>Delete each measurement from the logger immediately after it is successfully downloaded</td></tr>
         <tr><td><code>--interval &lt;s&gt;</code></td><td>off</td>
             <td>Loop indefinitely, re-scanning every <em>s</em> seconds (must be &gt; 0)</td></tr>
         <tr><td><code>--device &lt;ip&gt;</code></td><td>all</td>
@@ -584,10 +605,19 @@ Files available in: /tmp/logs</code></pre>
             <td>Print full per-measurement progress (same output as <code>download</code>)</td></tr>
         <tr><td><code>--stop-logging</code></td><td>off</td>
             <td>Stop the logger's recording before download, restart it afterwards</td></tr>
+        <tr><td><code>--last &lt;N&gt;</code></td><td>all</td>
+            <td>Download only the <em>N</em> most recent measurements from each logger (N ≥ 1)</td></tr>
       </table>
 
+      <div class="callout ok">
+        <strong>Newest first</strong>
+        Like <code>download</code>, <code>collect</code> always transfers measurements in
+        reverse chronological order. Combined with <code>--last N</code>, only the
+        <em>N</em> most recent measurements per logger are downloaded.
+      </div>
+
       <h4>Examples</h4>
-<pre><code><span class="cmt"># One-shot, all loggers</span>
+<pre><code><span class="cmt"># One-shot, all loggers (default dest: /home/Dexterlogs)</span>
 <span class="cmd">./xoraya-cli collect</span>
 
 <span class="cmt"># Target a specific directory</span>
@@ -595,6 +625,9 @@ Files available in: /tmp/logs</code></pre>
 
 <span class="cmt"># Loop every 5 minutes, delete after download</span>
 <span class="cmd">./xoraya-cli collect --dest /data/xoraya --interval 300 --delete-after-download</span>
+
+<span class="cmt"># Download only the 10 most recent measurements per logger</span>
+<span class="cmd">./xoraya-cli collect --last 10 --delete-after-download</span>
 
 <span class="cmt"># Restrict to one logger</span>
 <span class="cmd">./xoraya-cli collect --device 192.168.2.1 --dest /data/xoraya</span>
@@ -751,7 +784,7 @@ DX11252-2_20260423_150000-20260423_150230_snapshot_0001.mf4</code></pre>
     <div class="flow-step"><p><strong>Polling loop (200 ms)</strong> — waits until both <code>IsReceiving() == false</code> (network transfer complete) and <code>GetCnt(CId_IsDataConsuming) == 0</code> (FileWriterMdf has closed all files). <code>g_abort</code> is checked every iteration; if set, <code>cmd::HddStop</code> is sent.</p></div>
     <div class="flow-step"><p><strong>callAgain() / finalizeShadow()</strong> — if <code>cmdGet.callAgain()</code> returns true, the transfer loop repeats from step 4 to fetch the next chunk (shadow segment). When it returns false and <code>HasShadow()</code> is true, <code>finalizeShadow()</code> is called.</p></div>
     <div class="flow-step"><p><strong>DLC patch</strong> — <code>patch_mf4_dlc()</code> is called on every <code>_NNNN.mf4</code> file in <code>dest_dir</code> matching this measurement's base filename. Files are loaded into memory, patched, and rewritten (see DLC section).</p></div>
-    <div class="flow-step"><p><strong>Optional deletion</strong> — if <code>--delete-after-download</code>, <code>delete_gen2()</code> is called with the list of successfully downloaded measurements.</p></div>
+    <div class="flow-step"><p><strong>Per-measurement deletion</strong> — if <code>--delete-after-download</code>, <code>delete_gen2()</code> is called immediately after the DLC patch for that measurement. Logger storage is freed one measurement at a time rather than in a batch at the end.</p></div>
   </div>
 
   <h3>Gen3 path</h3>
