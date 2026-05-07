@@ -171,7 +171,7 @@ static int run_pass(const CollectOptions& opts)
         if (opts.verbose) {
             printf("\n--- %s (%s) ---\n", lg.name.c_str(), lg.ip.c_str());
             fflush(stdout);
-            int rc = cmd_download(lg.name, opts.dest_dir, -1, opts.delete_after, opts.stop_logging);
+            int rc = cmd_download(lg.name, opts.dest_dir, -1, opts.delete_after, opts.stop_logging, opts.last_n);
             if (rc != 0) {
                 fprintf(stderr, "  [collect] Error on '%s'.\n", lg.name.c_str());
                 ++fail;
@@ -183,7 +183,7 @@ static int run_pass(const CollectOptions& opts)
 
             FdGuard guard;
             guard.suppress();
-            int rc = cmd_download(lg.name, opts.dest_dir, -1, opts.delete_after, opts.stop_logging);
+            int rc = cmd_download(lg.name, opts.dest_dir, -1, opts.delete_after, opts.stop_logging, opts.last_n);
             guard.restore();
 
             if (rc == 0) {
