@@ -5,3 +5,4 @@ downloads/
 logs/
 CLAUDE_cli.md
 *.py
+xoraya-collect.conf
