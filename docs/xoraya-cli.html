@@ -297,6 +297,7 @@
 
     <li class="section">Automation</li>
     <li><a href="#service">systemd service</a></li>
+    <li><a href="#raspberry-pi">Raspberry Pi (Box64)</a></li>
 
     <li class="section">Reference</li>
     <li><a href="#troubleshooting">Troubleshooting</a></li>
@@ -969,6 +970,115 @@ RestartSec=5</code></pre>
     <tr><td>Update binary after rebuild</td><td><code>make &amp;&amp; sudo cp xoraya-cli /usr/local/bin/xoraya-cli &amp;&amp; sudo systemctl restart xoraya-collect</code></td></tr>
     <tr><td>Disable auto-start</td><td><code>sudo systemctl disable xoraya-collect</code></td></tr>
   </table>
+</section>
+
+<!-- ── Raspberry Pi ──────────────────────────────────────────────────────── -->
+<section id="raspberry-pi">
+  <h2>Raspberry Pi deployment (Box64)</h2>
+
+  <p>
+    Since the X2E SDK is only available as an x86-64 binary, the recommended approach on a
+    Raspberry Pi is <strong>Box64</strong> — an x86-64 emulator built for ARM64. Box64
+    translates x86-64 instructions to ARM64 at runtime, using native ARM versions of common
+    system libraries and emulating only the libraries it cannot wrap natively.
+  </p>
+
+  <div class="callout warn">
+    <strong>Requirement</strong>
+    64-bit Raspberry Pi OS or Debian Bookworm (aarch64). Run <code>uname -m</code> — you
+    need <code>aarch64</code>. If you see <code>armv7l</code>, reinstall with the 64-bit image.
+  </div>
+
+  <h3>1 — Install Box64</h3>
+  <p>Box64 requires its repository to be added manually:</p>
+<pre><code><span class="cmd">sudo wget https://ryanfortner.github.io/box64-debs/box64.list \
+     -O /etc/apt/sources.list.d/box64.list</span>
+
+<span class="cmd">wget -qO- https://ryanfortner.github.io/box64-debs/KEY.gpg | \
+     sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/box64-debs-archive-keyring.gpg</span>
+
+<span class="cmd">sudo apt update &amp;&amp; sudo apt install box64-rpi4arm64</span>
+<span class="cmd">box64 --version</span></code></pre>
+
+  <h3>2 — Install ARM dependencies</h3>
+<pre><code><span class="cmd">sudo apt install \
+  libxerces-c3.2 libusb-1.0-0 libsmbclient libcurl4 \
+  libgpgme11 libssl3 libkrb5-3 libicu72</span></code></pre>
+
+  <h3>3 — Copy binary and x86-64 libraries from the AMD machine</h3>
+  <p>Run on your <strong>AMD machine</strong>. The ICU libraries must be the x86-64 versions
+  because ICU appends its version number to every symbol name
+  (<code>u_toupper_74</code> vs <code>u_toupper_72</code>) — the ARM ICU 72 symlink trick
+  does not work.</p>
+<pre><code><span class="cmt"># Binary</span>
+<span class="cmd">scp xoraya-cli pi@&lt;pi-ip&gt;:~/xoraya_cli/</span>
+
+<span class="cmt"># Proprietary SDK (x86-64 — emulated by Box64)</span>
+<span class="cmd">scp /lib/x2e/libxorayasdk.so.1 pi@&lt;pi-ip&gt;:~/xoraya_cli/</span>
+
+<span class="cmt"># x86-64 libraries Box64 cannot wrap natively</span>
+<span class="cmd">scp /lib/x86_64-linux-gnu/libxerces-c-3.2.so \
+    /lib/x86_64-linux-gnu/liblz4.so.1 \
+    /lib/x86_64-linux-gnu/libicuuc.so.74 \
+    /lib/x86_64-linux-gnu/libicudata.so.74 \
+    /lib/x86_64-linux-gnu/libicui18n.so.74 \
+    pi@&lt;pi-ip&gt;:~/xoraya_cli/</span></code></pre>
+
+  <h3>4 — Install libraries on the Pi</h3>
+<pre><code><span class="cmd">sudo mkdir -p /lib/x2e</span>
+<span class="cmd">sudo cp ~/xoraya_cli/libxorayasdk.so.1 \
+        ~/xoraya_cli/libxerces-c-3.2.so \
+        ~/xoraya_cli/liblz4.so.1 \
+        ~/xoraya_cli/libicuuc.so.74 \
+        ~/xoraya_cli/libicudata.so.74 \
+        ~/xoraya_cli/libicui18n.so.74 \
+        /lib/x2e/</span>
+<span class="cmd">sudo ln -sf /lib/x2e/libxorayasdk.so.1 /lib/libxorayasdk.so.1</span></code></pre>
+
+  <h3>5 — Test</h3>
+<pre><code><span class="cmd">BOX64_LD_LIBRARY_PATH=/lib/x2e \
+BOX64_EMULATED_LIBS=libicuuc.so.74:libicudata.so.74:libicui18n.so.74 \
+box64 /usr/local/bin/xoraya-cli --help</span>
+
+<span class="cmd">BOX64_LD_LIBRARY_PATH=/lib/x2e \
+BOX64_EMULATED_LIBS=libicuuc.so.74:libicudata.so.74:libicui18n.so.74 \
+box64 /usr/local/bin/xoraya-cli scan</span></code></pre>
+
+  <h3>6 — Install the binary and service</h3>
+<pre><code><span class="cmd">sudo cp ~/xoraya_cli/xoraya-cli /usr/local/bin/xoraya-cli</span>
+
+<span class="cmd">cp ~/xoraya_cli/xoraya-collect.conf.example ~/xoraya_cli/xoraya-collect.conf</span>
+<span class="cmd">nano ~/xoraya_cli/xoraya-collect.conf</span>   <span class="cmt"># set DEST and INTERVAL</span>
+<span class="cmd">mkdir -p /home/pi/Dexterlogs</span></code></pre>
+
+  <p>The service file must include the Box64 environment variables. Contents of
+  <code>xoraya-collect.pi.service</code>:</p>
+<pre><code>[Unit]
+Description=Xoraya data collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+EnvironmentFile=/home/pi/xoraya_cli/xoraya-collect.conf
+Environment=BOX64_LD_LIBRARY_PATH=/lib/x2e
+Environment=BOX64_EMULATED_LIBS=libicuuc.so.74:libicudata.so.74:libicui18n.so.74
+ExecStart=systemd-inhibit --what=sleep --who=xoraya-collect \
+  --why="Download in progress" \
+  box64 /usr/local/bin/xoraya-cli collect \
+  --dest ${DEST} --interval ${INTERVAL} --delete-after-download --verbose
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+
+<pre><code><span class="cmd">sudo cp ~/xoraya_cli/xoraya-collect.pi.service /etc/systemd/system/xoraya-collect.service</span>
+<span class="cmd">sudo systemctl daemon-reload</span>
+<span class="cmd">sudo systemctl enable xoraya-collect</span>
+<span class="cmd">sudo systemctl start xoraya-collect</span>
+<span class="cmd">journalctl -u xoraya-collect -f</span></code></pre>
 </section>
 
 <!-- ── Troubleshooting ───────────────────────────────────────────────────── -->
