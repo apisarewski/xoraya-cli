@@ -1,0 +1,18 @@
+[Unit]
+Description=DataBridge uploader
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Documents/master/databridge/build/linux-x64/DataBridgeCLI
+Environment=LD_LIBRARY_PATH=.
+Environment=BOX64_LD_LIBRARY_PATH=/lib/x2e
+Environment=BOX64_EMULATED_LIBS=libicuuc.so.74:libicudata.so.74:libicui18n.so.74
+ExecStart=box64 ./DataBridgeCLI --logs-folder /home/pi/Dexterlogs
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

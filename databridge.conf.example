@@ -1,0 +1,6 @@
+[General]
+BlobRootPath=
+LogsFolder=/home/pi/Dexterlogs
+PrioritizeSnapshots=true
+RetryMaxAttempts=5
+RetryMaxDelaySec=60
