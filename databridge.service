@@ -6,11 +6,11 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/Documents/master/databridge/build/linux-x64/DataBridgeCLI
-Environment=LD_LIBRARY_PATH=.
+EnvironmentFile=/home/pi/xoraya_cli/databridge.conf
 Environment=BOX64_LD_LIBRARY_PATH=/lib/x2e
 Environment=BOX64_EMULATED_LIBS=libicuuc.so.74:libicudata.so.74:libicui18n.so.74
-ExecStart=box64 ./DataBridgeCLI --logs-folder /home/pi/Dexterlogs
+ExecStart=systemd-inhibit --what=sleep --who=databridge --why="Upload in progress" \
+  sh -c 'cd "${DATABRIDGE_PATH}" && LD_LIBRARY_PATH="${DATABRIDGE_PATH}" box64 ./DataBridgeCLI --logs-folder "${DEST}"'
 Restart=on-failure
 RestartSec=5
 
