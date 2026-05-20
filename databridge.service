@@ -7,10 +7,12 @@ Wants=network-online.target
 Type=simple
 User=pi
 EnvironmentFile=/home/pi/xoraya_cli/databridge.conf
+Environment=LD_LIBRARY_PATH=.
 Environment=BOX64_LD_LIBRARY_PATH=/lib/x2e
 Environment=BOX64_EMULATED_LIBS=libicuuc.so.74:libicudata.so.74:libicui18n.so.74
+WorkingDirectory=${DATABRIDGE_PATH}
 ExecStart=systemd-inhibit --what=sleep --who=databridge --why="Upload in progress" \
-  sh -c 'cd "${DATABRIDGE_PATH}" && LD_LIBRARY_PATH="${DATABRIDGE_PATH}" box64 ./DataBridgeCLI --logs-folder "${DEST}"'
+  box64 ./DataBridgeCLI --logs-folder ${DEST}
 Restart=on-failure
 RestartSec=5
 
