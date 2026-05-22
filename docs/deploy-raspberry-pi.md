@@ -221,3 +221,100 @@ On the Pi:
 sudo cp ~/xoraya_cli/xoraya-cli /usr/local/bin/xoraya-cli
 sudo systemctl restart xoraya-collect
 ```
+
+---
+
+## DataBridge upload service
+
+Once DataBridgeCLI is deployed on the Pi, install the upload service so collected MF4 files are automatically uploaded to Azure.
+
+### Prerequisites
+
+1. Copy `DataBridgeCLI` and `libDataBridgeCore.so.2.0.0` to the Pi:
+
+```bash
+ssh pi@192.168.1.51 "mkdir -p ~/Documents/master/databridge/build/linux-x64/DataBridgeCLI"
+
+scp /path/to/DataBridgeCLI \
+    /path/to/libDataBridgeCore.so.2.0.0 \
+    pi@192.168.1.51:~/Documents/master/databridge/build/linux-x64/DataBridgeCLI/
+```
+
+2. Create symlinks on the Pi:
+
+```bash
+ssh pi@192.168.1.51 "cd ~/Documents/master/databridge/build/linux-x64/DataBridgeCLI && \
+  ln -sf libDataBridgeCore.so.2.0.0 libDataBridgeCore.so.2 && \
+  ln -sf libDataBridgeCore.so.2.0.0 libDataBridgeCore.so"
+```
+
+3. Copy the required x86-64 OpenSSL libraries (Box64 needs these to emulate crypto):
+
+```bash
+scp /usr/lib/x86_64-linux-gnu/libssl.so.3 \
+    /usr/lib/x86_64-linux-gnu/libcrypto.so.3 \
+    pi@192.168.1.51:/tmp/
+ssh pi@192.168.1.51 "sudo mv /tmp/libssl.so.3 /tmp/libcrypto.so.3 /lib/x2e/"
+```
+
+4. Create `/home/pi/xoraya_cli/databridge.conf` (chmod 600) with your credentials:
+
+```bash
+cp ~/xoraya_cli/databridge.conf.example /home/pi/xoraya_cli/databridge.conf
+chmod 600 /home/pi/xoraya_cli/databridge.conf
+# Edit the file and fill in DEST, DATABRIDGE_BLOB_SAS_TOKEN_EU, and all
+# DATABRIDGE_MONITOR_* variables with real values.
+```
+
+> **Security:** `databridge.conf` contains secrets — it is git-ignored and must never be committed.
+
+### Install the service
+
+```bash
+sudo cp ~/xoraya_cli/databridge.service /etc/systemd/system/databridge.service
+sudo systemctl daemon-reload
+sudo systemctl enable databridge
+sudo systemctl start databridge
+```
+
+Check it is running:
+
+```bash
+sudo systemctl status databridge
+journalctl -u databridge -f
+```
+
+Expected: DataBridgeCLI starts, connects to Azure Blob Storage, scans `/home/pi/Dexterlogs`, then exits with code 0. Systemd restarts it every 60 seconds.
+
+### How it works
+
+DataBridgeCLI is a one-shot uploader: it scans the logs folder, uploads any new MF4 files, and exits. The service uses `Restart=always` with `RestartSec=60` to poll every 60 seconds.
+
+`BOX64_DYNAREC=0` is required — Box64's JIT recompiler mishandles x86-64 AES/SHA instructions used by the embedded OpenSSL, causing SSL connect errors. Interpreter mode is slower but correct.
+
+### Known limitation
+
+Azure Monitor telemetry (audit log upload) fails with a Qt SSL version mismatch under Box64. This is a Box64 issue with OpenSSL version reporting; it does not affect MF4 file uploads.
+
+### Both services together
+
+Check both are running:
+
+```bash
+sudo systemctl status xoraya-collect databridge
+```
+
+View combined logs:
+
+```bash
+journalctl -u xoraya-collect -u databridge --since "5 minutes ago"
+```
+
+### Day-to-day operations (DataBridge)
+
+| Task | Command |
+|---|---|
+| View live logs | `journalctl -u databridge -f` |
+| Restart after config change | `sudo systemctl restart databridge` |
+| Check status | `sudo systemctl status databridge` |
+| Stop | `sudo systemctl stop databridge` |
