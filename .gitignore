@@ -6,3 +6,4 @@ logs/
 CLAUDE_cli.md
 *.py
 xoraya-collect.conf
+databridge.conf

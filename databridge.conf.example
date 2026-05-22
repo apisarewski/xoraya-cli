@@ -5,5 +5,20 @@
 # Path to the DataBridgeCLI binary directory
 DATABRIDGE_PATH=/home/pi/Documents/master/databridge/build/linux-x64/DataBridgeCLI
 
-# Destination folder (MF4 files to upload)
+# Destination folder containing MF4 files to upload
 DEST=/home/pi/Dexterlogs
+
+# Azure Blob Storage SAS URL (full container URL including SAS query string)
+DATABRIDGE_BLOB_SAS_URL=https://<storage-account>.blob.core.windows.net/<container>?<sas-params>
+DATABRIDGE_BLOB_SAS_TOKEN_EU=https://<storage-account>.blob.core.windows.net/<container>?<sas-params>
+
+# Azure Monitor credentials
+DATABRIDGE_MONITOR_ENDPOINT=https://<dce-endpoint>.ingest.monitor.azure.com
+DATABRIDGE_MONITOR_DCR_ID=dcr-<id>
+DATABRIDGE_MONITOR_CLIENT_ID=<client-id>
+DATABRIDGE_MONITOR_CLIENT_SECRET=<client-secret>
+DATABRIDGE_MONITOR_TENANT_ID=<tenant-id>
+
+# Environment and region
+DATABRIDGE_ENVIRONMENT=dev
+DATABRIDGE_REGION=eu
