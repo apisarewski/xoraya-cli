@@ -2,9 +2,6 @@
 # Copy this file to databridge.conf and edit as needed.
 # After changing values: sudo systemctl restart databridge
 
-# Path to the DataBridgeCLI binary directory
-DATABRIDGE_PATH=/home/pi/Documents/master/databridge/build/linux-x64/DataBridgeCLI
-
 # Destination folder containing MF4 files to upload
 DEST=/home/pi/Dexterlogs
 

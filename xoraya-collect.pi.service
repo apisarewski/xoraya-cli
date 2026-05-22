@@ -1,0 +1,18 @@
+[Unit]
+Description=Xoraya data collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+EnvironmentFile=/home/pi/xoraya_cli/xoraya-collect.conf
+Environment=BOX64_LD_LIBRARY_PATH=/lib/x2e
+Environment=BOX64_EMULATED_LIBS=libicuuc.so.74:libicudata.so.74:libicui18n.so.74
+ExecStart=systemd-inhibit --what=sleep --who=xoraya-collect --why="Download in progress" \
+  /usr/local/bin/xoraya-cli collect --dest ${DEST} --interval ${INTERVAL} --delete-after-download --verbose
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
