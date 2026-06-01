@@ -148,7 +148,7 @@ All screens are white-on-black monochrome, rendered with Pillow into a `luma.ole
 
 ### BOOT
 ```
-        XORAYA
+    DISTALMOTION SA
   DATALOGGER STATION
   ─────────────────
   v1.2.0 · Starting…
