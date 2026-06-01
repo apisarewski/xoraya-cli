@@ -36,13 +36,16 @@ void StatusWriter::setScanning()
 void StatusWriter::setDevice(const std::string& name, int total_files)
 {
     std::lock_guard<std::mutex> lk(s_mtx);
+    // Replace double-quotes to avoid breaking JSON
+    std::string safe;
+    for (char c : name) safe += (c == '"') ? '\'' : c;
     char buf[256];
     snprintf(buf, sizeof(buf),
         "{\"state\":\"scanning\","
         "\"device\":\"%s\","
         "\"files_total\":%d,"
         "\"updated_at\":%ld}",
-        name.c_str(), total_files, now_ts());
+        safe.c_str(), total_files, now_ts());
     write_atomic(buf);
 }
 
