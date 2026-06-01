@@ -12,6 +12,7 @@
 #include "collector.hpp"
 #include "scanner.hpp"
 #include "downloader.hpp"
+#include "StatusWriter.hpp"
 
 #include <cerrno>
 #include <csignal>
@@ -124,6 +125,7 @@ static int run_pass(const CollectOptions& opts)
     printf("Scanning network (2 s)...\n");
     fflush(stdout);
 
+    StatusWriter::setScanning();
     auto loggers = scan_network(2000);
 
     // --- Filter --device (exact IP) ---
@@ -243,5 +245,6 @@ int cmd_collect(const CollectOptions& opts)
         }
     }
 
+    StatusWriter::clear();
     return global_fail;
 }

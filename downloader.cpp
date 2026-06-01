@@ -16,6 +16,7 @@
  */
 
 #include "downloader.hpp"
+#include "StatusWriter.hpp"
 
 #include "x2e/loggerclient.h"
 #include "x2e/loggerctrl_if.h"
@@ -525,6 +526,11 @@ public:
                           timespanLowRes::type_t eta_sec,
                           uint32_t mbit_s) override
     {
+        StatusWriter::setProgress(
+            0, 0,
+            pct_total,
+            static_cast<float>(mbit_s) / 8.0f,
+            static_cast<int>(eta_sec));
         printf("\r  %5.1f%%  %4u Mbit/s  ETA : %ds   ",
                pct_total, mbit_s, (int)eta_sec);
         fflush(stdout);
@@ -608,6 +614,8 @@ static int download_gen2(LoggerCtrl& ctrl,
         printf("Downloading measurement %d...\n", index);
     }
 
+    StatusWriter::setDevice(device_name, static_cast<int>(targets.size()));
+
     // 3. Create the filter ONCE before the loop, AddFilter before SetProperty.
     //    XorayaConnection: lrx->ClearFilter() + AddFilter() outside the loop,
     //    then SetProperty("Filename") updated for each measurement inside the loop.
@@ -672,6 +680,12 @@ static int download_gen2(LoggerCtrl& ctrl,
                     double mbit  = (double)(bytes_rx - last_rx) * 8.0 / 1e6 / 0.2;
                     printf("\r  %5.1f%%  %4.0f Mbit/s   ", pct, mbit);
                     fflush(stdout);
+                    StatusWriter::setProgress(
+                        static_cast<int>(i + 1),
+                        static_cast<int>(targets.size()),
+                        static_cast<float>(pct),
+                        static_cast<float>(mbit / 8.0),
+                        0);
                 }
                 last_rx = bytes_rx;
 
@@ -951,8 +965,12 @@ int cmd_download(const std::string& device,
         restart_logging(ctrl, saved_targets);
 
     ctrl->Disconnect();
-    if (rc == 0)
+    if (rc == 0) {
+        StatusWriter::setDone(0, 0);
         printf("\nFiles available in: %s\n", dest_dir.c_str());
+    } else {
+        StatusWriter::setError("download failed");
+    }
     return rc;
 }
 

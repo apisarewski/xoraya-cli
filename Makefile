@@ -18,6 +18,7 @@ SRCS  = main.cpp
 SRCS += scanner.cpp
 SRCS += downloader.cpp
 SRCS += collector.cpp
+SRCS += StatusWriter.cpp
 
 OBJS = $(SRCS:.cpp=.o)
 
