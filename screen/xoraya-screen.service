@@ -1,0 +1,15 @@
+[Unit]
+Description=Xoraya OLED screen daemon
+After=multi-user.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/xoraya_cli/screen
+ExecStart=/usr/bin/python3 screen_daemon.py
+Restart=always
+RestartSec=5
+Environment=DEST=/home/pi/Dexterlogs
+
+[Install]
+WantedBy=multi-user.target
