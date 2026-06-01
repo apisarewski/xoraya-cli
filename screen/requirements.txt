@@ -1,0 +1,4 @@
+luma.oled[i2c]>=3.12.0
+gpiozero>=2.0
+Pillow>=10.0.0
+pytest>=8.0.0
