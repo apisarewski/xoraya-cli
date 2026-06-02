@@ -125,7 +125,7 @@ static int run_pass(const CollectOptions& opts)
     printf("Scanning network (2 s)...\n");
     fflush(stdout);
 
-    StatusWriter::setScanning();
+    StatusWriter::setScanning(opts.dest_dir);
     auto loggers = scan_network(2000);
 
     // --- Filter --device (exact IP) ---
