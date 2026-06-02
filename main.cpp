@@ -121,7 +121,7 @@ static int cmd_download(int argc, char** argv)
 {
     // argv[0] = device
     // argv[1] (optional): dest_dir if it is not a flag and not a bare integer,
-    //                     otherwise defaults to /home/Dexterlogs
+    //                     otherwise auto-detects external drive under /media/<user>/
     // remaining: [N] [--delete-after-download] [--stop-logging] [--last N] (any order)
     const std::string device = argv[0];
     std::string dest_dir;
