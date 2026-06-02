@@ -67,9 +67,10 @@ class State(Enum):
     ERROR       = auto()
 
 
-def count_local_mf4():
+def count_local_mf4(folder=None):
+    path = folder or DEST_FOLDER
     try:
-        return sum(1 for f in os.listdir(DEST_FOLDER) if f.endswith('.mf4'))
+        return sum(1 for f in os.listdir(path) if f.endswith('.mf4'))
     except OSError:
         return 0
 
@@ -165,13 +166,14 @@ def main():
 
             status = read_xoraya_status()
             device = status.get('device', '') if status else ''
+            dest   = status.get('dest_dir', None) if status else None
 
             if idle_page == 0:
                 oled.display(render_idle_status(
                     device=device,
                     net_ok=net_ok,
                     logger_files=status.get('files_total', 0) if status else 0,
-                    local_files=count_local_mf4(),
+                    local_files=count_local_mf4(dest),
                     last_upload=done_info.get('last_upload', 'never'),
                     sw1=cur_sw1,
                     sw2=cur_sw2,
