@@ -9,7 +9,7 @@
  */
 class StatusWriter {
 public:
-    static void setScanning();
+    static void setScanning(const std::string& dest_dir = "");
     static void setDevice(const std::string& name, int total_files);
     static void setProgress(int file_idx, int total,
                             float pct, float speed_mbps, int eta_s);
