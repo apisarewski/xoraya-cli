@@ -16,6 +16,7 @@
 #include "scanner.hpp"
 #include "downloader.hpp"
 #include "collector.hpp"
+#include "storage.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -36,7 +37,7 @@ static void print_help(const char* prog)
     printf("      Lists measurements stored on the HDD of logger <device>.\n\n");
     printf("  download <device> [dest_dir] [N] [--delete-after-download] [--stop-logging] [--last N]\n");
     printf("      Downloads all measurements (or measurement N) to dest_dir.\n");
-    printf("      dest_dir defaults to /home/Dexterlogs when omitted.\n");
+    printf("      dest_dir defaults to auto-detected external drive when omitted.\n");
     printf("      By default: non-destructive. No measurement is deleted.\n");
     printf("      With --delete-after-download: delete each measurement immediately after download.\n");
     printf("      With --stop-logging: stop logging during download, restart it afterwards.\n");
@@ -46,7 +47,7 @@ static void print_help(const char* prog)
     printf("  collect [options]\n");
     printf("      Scans the network and downloads measurements from all loggers.\n");
     printf("      Options:\n");
-    printf("        --dest <dir>              Destination folder (default: /home/Dexterlogs)\n");
+    printf("        --dest <dir>              Destination folder (default: auto-detect external drive)\n");
     printf("        --delete-after-download   Delete measurements after successful download\n");
     printf("        --interval <s>            Loop indefinitely, re-scanning every N seconds (N > 0)\n");
     printf("        --device <ip>             Restrict to one logger by exact IP\n");
@@ -123,7 +124,8 @@ static int cmd_download(int argc, char** argv)
     //                     otherwise defaults to /home/Dexterlogs
     // remaining: [N] [--delete-after-download] [--stop-logging] [--last N] (any order)
     const std::string device = argv[0];
-    std::string dest_dir = "/home/Dexterlogs";
+    std::string dest_dir;
+    bool dest_explicit = false;
     int  start        = 1;
     int  index        = -1;
     bool delete_after = false;
@@ -136,6 +138,7 @@ static int cmd_download(int argc, char** argv)
         if (*end != '\0') {
             // Not a pure integer → treat as destination directory
             dest_dir = argv[1];
+            dest_explicit = true;
             start = 2;
         }
     }
@@ -172,6 +175,15 @@ static int cmd_download(int argc, char** argv)
     if (index >= 0 && last_n >= 1) {
         fprintf(stderr, "Error: a specific index and --last are mutually exclusive.\n");
         return 1;
+    }
+
+    if (!dest_explicit) {
+        std::string err;
+        dest_dir = detect_dest_dir(err);
+        if (dest_dir.empty()) {
+            fprintf(stderr, "Error: %s\n", err.c_str());
+            return 1;
+        }
     }
 
     return ::cmd_download(device, dest_dir, index, delete_after, stop_logging, last_n);
@@ -235,6 +247,7 @@ int main(int argc, char** argv)
 
     if (strcmp(cmd, "collect") == 0) {
         CollectOptions opts;
+        bool dest_explicit = false;
         for (int i = 2; i < argc; ++i) {
             if (strcmp(argv[i], "--delete-after-download") == 0) {
                 opts.delete_after = true;
@@ -250,6 +263,7 @@ int main(int argc, char** argv)
                     return 1;
                 }
                 opts.dest_dir = argv[++i];
+                dest_explicit = true;
             } else if (strcmp(argv[i], "--interval") == 0) {
                 if (i + 1 >= argc) {
                     fprintf(stderr, "Error: --interval requires an argument.\n");
@@ -285,6 +299,14 @@ int main(int argc, char** argv)
                 fprintf(stderr, "Usage: %s collect [--dest <dir>] [--delete-after-download] "
                                 "[--interval <s>] [--device <ip>] [--dry-run] [--verbose] "
                                 "[--stop-logging] [--last N]\n", argv[0]);
+                return 1;
+            }
+        }
+        if (!dest_explicit) {
+            std::string err;
+            opts.dest_dir = detect_dest_dir(err);
+            if (opts.dest_dir.empty()) {
+                fprintf(stderr, "Error: %s\n", err.c_str());
                 return 1;
             }
         }
