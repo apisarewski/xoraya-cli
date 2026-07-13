@@ -347,17 +347,19 @@ Pin 11 (GPIO17) Switch 1      Signal terminal of SW1 (Download)
 Pin 13 (GPIO27) Switch 2      Signal terminal of SW2 (Upload)
 ```
 
-The toggle switches are **SPDT** (Single Pole Double Throw) — 3 terminals:
+The toggle switches are **miniature SPDT ON-ON** (1CO, 3 terminals, soldering lugs). Both positions are always active — there is no centre-off position.
 
-| Terminal | Name | Connect to |
-|----------|------|------------|
-| Centre | **COM** (Common) | GPIO pin (Pin 11 or 13) |
-| End 1 | **NO** (Normally Open) | GND |
-| End 2 | **NC** (Normally Closed) | Leave unconnected |
+| Terminal | Connect to |
+|----------|------------|
+| **COM** (centre lug) | GPIO pin — Pin 11 (SW1) or Pin 13 (SW2) |
+| **One end lug** | GND |
+| **Other end lug** | Leave unconnected |
 
-The firmware uses internal pull-up resistors:
-- Switch **ON** (COM connected to GND via NO) → GPIO reads LOW → `is_pressed = True`
-- Switch **OFF** (COM floating via pull-up) → GPIO reads HIGH → `is_pressed = False`
+The firmware uses the Pi's internal pull-up resistors:
+- Switch flipped toward the **GND lug** → COM pulled to GND → GPIO reads LOW → `is_pressed = True` → service starts
+- Switch flipped toward the **open lug** → COM floats high via pull-up → GPIO reads HIGH → `is_pressed = False` → service stops
+
+It does not matter which end lug you connect to GND — just be consistent: pick one side as "ON" and solder GND there.
 
 ### Verify wiring before starting the daemon
 
