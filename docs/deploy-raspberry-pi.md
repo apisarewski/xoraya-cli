@@ -318,3 +318,88 @@ journalctl -u xoraya-collect -u databridge --since "5 minutes ago"
 | Restart after config change | `sudo systemctl restart databridge` |
 | Check status | `sudo systemctl status databridge` |
 | Stop | `sudo systemctl stop databridge` |
+
+---
+
+## OLED Screen and Toggle Switches
+
+The station includes a 128×64 SSD1306 OLED display and two toggle flip switches wired directly to the Pi GPIO header.
+
+### Hardware
+
+| Component | Spec |
+|-----------|------|
+| Display | SSD1306 — 128×64 monochrome OLED |
+| Interface | I2C bus 1, address `0x3C` |
+| Switch 1 | GPIO 17 — Download (starts/stops `xoraya-collect`) |
+| Switch 2 | GPIO 27 — Upload (starts/stops `databridge`) |
+
+### Wiring
+
+```
+Pi Header Pin   Signal        Connect to
+─────────────   ──────────    ──────────────────────────
+Pin 1  (3.3V)   Power         VCC  (OLED)
+Pin 3  (GPIO2)  I2C SDA       SDA  (OLED)
+Pin 5  (GPIO3)  I2C SCL       SCL  (OLED)
+Pin 6  (GND)    Ground        GND  (OLED) + GND terminal of both switches
+Pin 11 (GPIO17) Switch 1      Signal terminal of SW1 (Download)
+Pin 13 (GPIO27) Switch 2      Signal terminal of SW2 (Upload)
+```
+
+Each toggle switch has two terminals:
+- **Terminal A** → GPIO pin (11 or 13)
+- **Terminal B** → GND (any GND pin — 6, 9, 14, 20, …)
+
+The firmware uses internal pull-up resistors. Switch **ON** (closed) pulls the GPIO to GND → `is_pressed = True`. Switch **OFF** (open) → `is_pressed = False`.
+
+### Verify wiring before starting the daemon
+
+```bash
+# Check the OLED is detected at address 0x3C
+sudo i2cdetect -y 1
+# Expected: "3c" appears in the grid
+
+# Enable I2C if not already active
+sudo raspi-config   # → Interface Options → I2C → Enable
+
+# Read current switch positions
+python3 -c "
+from gpiozero import Button
+sw1 = Button(17, pull_up=True)
+sw2 = Button(27, pull_up=True)
+print('SW1 (Download):', 'ON' if sw1.is_pressed else 'OFF')
+print('SW2 (Upload)  :', 'ON' if sw2.is_pressed else 'OFF')
+"
+```
+
+### Install Python dependencies
+
+```bash
+pip3 install -r /home/pi/xoraya_cli/screen/requirements.txt
+```
+
+### Install and start the screen service
+
+```bash
+sudo cp /home/pi/xoraya_cli/screen/xoraya-screen.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable xoraya-screen
+sudo systemctl start xoraya-screen
+```
+
+Verify it is running and the OLED shows the boot screen:
+
+```bash
+sudo systemctl status xoraya-screen
+journalctl -u xoraya-screen -n 30 --no-pager
+```
+
+### Day-to-day operations (screen daemon)
+
+| Task | Command |
+|---|---|
+| View live logs | `journalctl -u xoraya-screen -f` |
+| Restart | `sudo systemctl restart xoraya-screen` |
+| Check status | `sudo systemctl status xoraya-screen` |
+| Stop | `sudo systemctl stop xoraya-screen` |

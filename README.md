@@ -43,6 +43,7 @@ make
 | [docs/build.md](docs/build.md) | Prerequisites, dependencies, build instructions |
 | [docs/usage.md](docs/usage.md) | All commands, options, and examples |
 | [docs/collect.md](docs/collect.md) | Collect workflow and automation |
+| [docs/deploy-raspberry-pi.md](docs/deploy-raspberry-pi.md) | Pi deployment, Box64, services, OLED wiring |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues and diagnostic steps |
 
 ---
