@@ -347,11 +347,17 @@ Pin 11 (GPIO17) Switch 1      Signal terminal of SW1 (Download)
 Pin 13 (GPIO27) Switch 2      Signal terminal of SW2 (Upload)
 ```
 
-Each toggle switch has two terminals:
-- **Terminal A** → GPIO pin (11 or 13)
-- **Terminal B** → GND (any GND pin — 6, 9, 14, 20, …)
+The toggle switches are **SPDT** (Single Pole Double Throw) — 3 terminals:
 
-The firmware uses internal pull-up resistors. Switch **ON** (closed) pulls the GPIO to GND → `is_pressed = True`. Switch **OFF** (open) → `is_pressed = False`.
+| Terminal | Name | Connect to |
+|----------|------|------------|
+| Centre | **COM** (Common) | GPIO pin (Pin 11 or 13) |
+| End 1 | **NO** (Normally Open) | GND |
+| End 2 | **NC** (Normally Closed) | Leave unconnected |
+
+The firmware uses internal pull-up resistors:
+- Switch **ON** (COM connected to GND via NO) → GPIO reads LOW → `is_pressed = True`
+- Switch **OFF** (COM floating via pull-up) → GPIO reads HIGH → `is_pressed = False`
 
 ### Verify wiring before starting the daemon
 
