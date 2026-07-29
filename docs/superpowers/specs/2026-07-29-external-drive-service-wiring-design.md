@@ -115,12 +115,12 @@ Remove the `DEST=` line (no longer read). Keep `INTERVAL=`.
 Add an `ExecStartPre` that resolves the drive via the new subcommand and writes it to a runtime env file, then load that file after the static conf so it overrides `DEST`:
 
 ```
-ExecStartPre=/bin/sh -c 'echo "DEST=$(/usr/local/bin/xoraya-cli detect-dest)" > /run/xoraya-dest.env'
+ExecStartPre=/bin/sh -c 'DEST=$(/usr/local/bin/xoraya-cli detect-dest) || exit 1; echo "DEST=$DEST" > /run/xoraya-dest.env'
 EnvironmentFile=/home/pi/xoraya_cli/databridge.conf
 EnvironmentFile=/run/xoraya-dest.env
 ```
 
-If `detect-dest` exits non-zero, the `sh -c` pipeline fails, `ExecStartPre` fails, and systemd never runs `ExecStart` — the unit fails to start. Its stderr (the `detect_dest_dir()` error message) lands in `journalctl -u databridge`, which is exactly the hint `screen_daemon.py`'s `render_error` already points to.
+The explicit `|| exit 1` is required: `echo "DEST=$(cmd)" > file` alone would silently swallow a failing `cmd` (the substitution's exit status is discarded once it's embedded inside `echo`'s argument), writing an empty `DEST=` and letting `databridge` start anyway. Assigning to a variable first (`DEST=$(cmd) || exit 1`) makes the failure explicit and stops the script before the file is written. If `detect-dest` exits non-zero, `ExecStartPre` fails, and systemd never runs `ExecStart` — the unit fails to start. Its stderr (the `detect_dest_dir()` error message) lands in `journalctl -u databridge`, which is exactly the hint `screen_daemon.py`'s `render_error` already points to.
 
 ### `databridge.conf.example` (modified)
 
