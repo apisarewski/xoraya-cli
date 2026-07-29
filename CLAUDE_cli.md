@@ -184,23 +184,9 @@ Switch type: miniature SPDT ON-ON, soldering lugs. COM→GPIO, one end→GND, ot
 gpiozero: `Button(27, pull_up=True)` and `Button(10, pull_up=True)`.
 I2C enabled via `raspi-config nonint do_i2c 0`. `i2cdetect -y 1` shows `3c`.
 
-### Open issue: OLED not displaying anything
+### Resolved (2026-07-29): OLED not displaying anything
 
-The OLED is detected at address `0x3C` on `/dev/i2c-1`. The Python scripts run without errors (exit 0). `luma.oled` sends commands successfully. But nothing appears on the physical screen.
-
-Diagnosis done so far:
-- `i2cdetect -y 1` → shows `3c` ✓
-- `pi` is in the `i2c` group ✓
-- `ImageFont.load_default(size=8)` works (Pillow 12.3) ✓
-- Direct render test (daemon stopped, 10s hold) → script says "displayed" but user sees nothing
-
-**Suspicion: hardware issue** — either contrast register not being set, or the OLED panel is defective/wired incorrectly (VCC/GND swapped, or SDA/SCL swapped).
-
-Next steps to try:
-1. Try `oled.contrast(255)` explicitly before `oled.display()`
-2. Try `i2cset -y 1 0x3c 0x00 0x8d 0x14 0xaf` (manual SSD1306 charge pump + display on)
-3. Check physical wiring: confirm VCC=3.3V, GND=GND, SDA=Pin3, SCL=Pin5
-4. Try a different I2C address (some SSD1306 use `0x3D`)
+Root cause was **not hardware**: `screen_daemon.py` read the toggle switches on GPIO 17/27, but the actual wiring uses GPIO 27/10 (physical pins 13/19). Fixed pin assignments to match wiring, removed the unused `SLEEP` state, and added `boot_splash.py` (oneshot `xoraya-screen-splash.service`, `WantedBy=sysinit.target`) to show a static splash very early at boot, before the main daemon starts. Committed in `0c3f264`.
 
 ### StatusWriter (C++)
 
