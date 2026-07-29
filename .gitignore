@@ -10,3 +10,4 @@ CLAUDE_cli.md
 xoraya-collect.conf
 databridge.conf
 .superpowers/
+.worktrees/
