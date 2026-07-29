@@ -38,10 +38,10 @@ xoraya-collect.service                     databridge.service
         │                                          │
         │ ExecStart (no --dest arg)                │ ExecStartPre:
         ▼                                           │   xoraya-cli detect-dest
-   xoraya-cli collect --interval ...                │   → writes /run/xoraya-dest.env
+   xoraya-cli collect --interval ...                │   → writes /run/xoraya-cli/dest.env
         │                                            │        (DEST=<mount>/Dexterlogs)
         │ !dest_explicit                             ▼
-        ▼                                     EnvironmentFile=/run/xoraya-dest.env
+        ▼                                     EnvironmentFile=-/run/xoraya-cli/dest.env
    detect_dest_dir()  ◄────────── same function ────┘
         │                         also called by detect-dest
         ├─ 0 or 2+ drives → StatusWriter::setError(err); exit 1
@@ -106,21 +106,29 @@ ExecStart=systemd-inhibit --what=sleep --who=xoraya-collect --why="Download in p
   /usr/local/bin/xoraya-cli collect --interval ${INTERVAL} --delete-after-download --verbose
 ```
 
-### `xoraya-collect.conf` / `xoraya-collect.conf.example` (modified)
+### `xoraya-collect.conf.example` (modified)
 
 Remove the `DEST=` line (no longer read). Keep `INTERVAL=`.
+
+**Note:** `xoraya-collect.conf` (without `.example`) is git-ignored, host-local runtime config — it is never checked out into a fresh worktree/clone and must NOT be created or committed. Only `.conf.example` is tracked.
 
 ### `databridge.service` (modified)
 
 Add an `ExecStartPre` that resolves the drive via the new subcommand and writes it to a runtime env file, then load that file after the static conf so it overrides `DEST`:
 
 ```
-ExecStartPre=/bin/sh -c 'DEST=$(/usr/local/bin/xoraya-cli detect-dest) || exit 1; echo "DEST=$DEST" > /run/xoraya-dest.env'
+RuntimeDirectory=xoraya-cli
+ExecStartPre=/bin/sh -c 'DEST=$(/usr/local/bin/xoraya-cli detect-dest) || exit 1; echo "DEST=$DEST" > /run/xoraya-cli/dest.env'
 EnvironmentFile=/home/pi/xoraya_cli/databridge.conf
-EnvironmentFile=/run/xoraya-dest.env
+EnvironmentFile=-/run/xoraya-cli/dest.env
 ```
 
 The explicit `|| exit 1` is required: `echo "DEST=$(cmd)" > file` alone would silently swallow a failing `cmd` (the substitution's exit status is discarded once it's embedded inside `echo`'s argument), writing an empty `DEST=` and letting `databridge` start anyway. Assigning to a variable first (`DEST=$(cmd) || exit 1`) makes the failure explicit and stops the script before the file is written. If `detect-dest` exits non-zero, `ExecStartPre` fails, and systemd never runs `ExecStart` — the unit fails to start. Its stderr (the `detect_dest_dir()` error message) lands in `journalctl -u databridge`, which is exactly the hint `screen_daemon.py`'s `render_error` already points to.
+
+Two further systemd subtleties, both required for this to work at all (verified against a real systemd unit, not just documentation):
+
+- `EnvironmentFile=-/run/xoraya-cli/dest.env` **must** have the leading `-` (marks it optional). Systemd resolves every `EnvironmentFile=` before spawning any exec directive, including `ExecStartPre`. Since `/run` is tmpfs (wiped every reboot), the file doesn't exist yet on the unit's first start after a boot — without the `-`, systemd refuses to spawn `ExecStartPre` at all ("Failed to load environment files"), so the file that's supposed to create it never gets a chance to run, and the unit fails permanently on every boot.
+- `RuntimeDirectory=xoraya-cli` is required because `ExecStartPre` runs as `User=pi` (that directive applies to all exec commands in the unit, not just `ExecStart`), and bare `/run` is `root:root` mode 755 — `pi` cannot write there directly. `RuntimeDirectory=xoraya-cli` makes systemd pre-create `/run/xoraya-cli/`, owned by `pi`, before any exec directive runs (and removes it when the unit stops), giving `ExecStartPre` a writable location.
 
 ### `databridge.conf.example` (modified)
 
