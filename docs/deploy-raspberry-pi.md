@@ -331,8 +331,8 @@ The station includes a 128×64 SSD1306 OLED display and two toggle flip switches
 |-----------|------|
 | Display | SSD1306 — 128×64 monochrome OLED |
 | Interface | I2C bus 1, address `0x3C` |
-| Switch 1 | GPIO 17 — Download (starts/stops `xoraya-collect`) |
-| Switch 2 | GPIO 27 — Upload (starts/stops `databridge`) |
+| Switch 1 | GPIO 27 — Download (starts/stops `xoraya-collect`) |
+| Switch 2 | GPIO 10 — Upload (starts/stops `databridge`) |
 
 ### Wiring
 
@@ -342,9 +342,11 @@ Pi Header Pin   Signal        Connect to
 Pin 1  (3.3V)   Power         VCC  (OLED)
 Pin 3  (GPIO2)  I2C SDA       SDA  (OLED)
 Pin 5  (GPIO3)  I2C SCL       SCL  (OLED)
-Pin 6  (GND)    Ground        GND  (OLED) + GND terminal of both switches
-Pin 11 (GPIO17) Switch 1      Signal terminal of SW1 (Download)
-Pin 13 (GPIO27) Switch 2      Signal terminal of SW2 (Upload)
+Pin 6  (GND)    Ground        GND  (OLED)
+Pin 13 (GPIO27) Switch 1 COM  COM terminal of SW1 (Download)
+Pin 14 (GND)    Switch 1 GND  GND terminal of SW1
+Pin 19 (GPIO10) Switch 2 COM  COM terminal of SW2 (Upload)
+Pin 20 (GND)    Switch 2 GND  GND terminal of SW2
 ```
 
 The toggle switches are **miniature SPDT ON-ON** (1CO, 3 terminals, soldering lugs). Both positions are always active — there is no centre-off position.
@@ -374,8 +376,8 @@ sudo raspi-config   # → Interface Options → I2C → Enable
 # Read current switch positions
 python3 -c "
 from gpiozero import Button
-sw1 = Button(17, pull_up=True)
-sw2 = Button(27, pull_up=True)
+sw1 = Button(27, pull_up=True)
+sw2 = Button(10, pull_up=True)
 print('SW1 (Download):', 'ON' if sw1.is_pressed else 'OFF')
 print('SW2 (Upload)  :', 'ON' if sw2.is_pressed else 'OFF')
 "

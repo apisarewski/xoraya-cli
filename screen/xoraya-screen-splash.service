@@ -1,0 +1,13 @@
+[Unit]
+Description=Xoraya OLED boot splash
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+User=pi
+WorkingDirectory=/home/pi/xoraya_cli/screen
+ExecStart=/usr/bin/python3 boot_splash.py
+RemainAfterExit=no
+
+[Install]
+WantedBy=sysinit.target

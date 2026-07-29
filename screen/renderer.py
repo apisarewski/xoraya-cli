@@ -9,15 +9,16 @@ def _canvas():
     return img, ImageDraw.Draw(img)
 
 
-def _font():
-    return ImageFont.load_default()
+def _font(size=8):
+    return ImageFont.load_default(size=size)
 
 
-def _sw_row(d, sw1, sw2, y=55):
-    d.rectangle([(0, y), (55, 63)], outline=1)
-    d.text((3, y + 1), f'1 {"ON " if sw1 else "OFF"}', font=_font(), fill=1)
-    d.rectangle([(72, y), (127, 63)], outline=1)
-    d.text((75, y + 1), f'2 {"ON " if sw2 else "OFF"}', font=_font(), fill=1)
+def _sw_row(d, sw1, sw2, y=53):
+    f = _font()
+    d.rectangle([(0, y), (57, 63)], outline=1)
+    d.text((3, y + 2), f'DL {"ON " if sw1 else "off"}', font=f, fill=1)
+    d.rectangle([(70, y), (127, 63)], outline=1)
+    d.text((73, y + 2), f'UP {"ON " if sw2 else "off"}', font=f, fill=1)
 
 
 def _divider(d, y):

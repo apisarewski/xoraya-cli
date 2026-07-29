@@ -5,6 +5,8 @@ downloads/
 logs/
 CLAUDE_cli.md
 *.py
+!screen/*.py
+!screen/*.service
 xoraya-collect.conf
 databridge.conf
 .superpowers/

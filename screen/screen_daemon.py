@@ -4,7 +4,7 @@ screen_daemon.py — OLED display daemon for Xoraya datalogger station.
 
 Reads /tmp/xoraya-status.json (written by xoraya-cli) and journal output
 (for databridge) to drive a 128x64 SSD1306 OLED. Two toggle switches on
-GPIO 17/27 start and stop the collect and upload services.
+GPIO 27/10 start and stop the collect and upload services.
 """
 
 import os
@@ -33,20 +33,18 @@ from renderer import (
     render_uploading,
     render_done,
     render_error,
-    render_sleep,
 )
 
 # ── Hardware ──────────────────────────────────────────────────────────────────
-GPIO_SW1   = 17    # Download toggle switch
-GPIO_SW2   = 27    # Upload toggle switch
+GPIO_SW1   = 27    # Download toggle switch (physical pin 13)
+GPIO_SW2   = 10    # Upload toggle switch   (physical pin 19)
 I2C_PORT   = 1
 I2C_ADDR   = 0x3C
 
 # ── Timing (seconds) ─────────────────────────────────────────────────────────
-BOOT_SECS   = 3
+BOOT_SECS   = 0
 DONE_SECS   = 5
 ERROR_SECS  = 8
-SLEEP_SECS  = 60
 CYCLE_SECS  = 8
 POLL_SECS   = 1.0
 NET_CHECK_INTERVAL = 10
@@ -60,7 +58,6 @@ DEST_FOLDER  = os.environ.get('DEST', '/home/pi/Dexterlogs')
 class State(Enum):
     BOOT        = auto()
     IDLE        = auto()
-    SLEEP       = auto()
     DOWNLOADING = auto()
     UPLOADING   = auto()
     DONE        = auto()
@@ -142,23 +139,7 @@ def main():
             if elapsed >= BOOT_SECS:
                 transition(State.IDLE)
 
-        elif state == State.SLEEP:
-            oled.display(render_sleep())
-            if sw1_rose:
-                svc_start(SVC_COLLECT)
-                transition(State.DOWNLOADING)
-            elif sw1_fell or sw2_fell:
-                transition(State.IDLE)
-            elif sw2_rose:
-                svc_start(SVC_UPLOAD)
-                transition(State.UPLOADING)
-
         elif state == State.IDLE:
-            # Auto-sleep
-            if elapsed >= SLEEP_SECS:
-                transition(State.SLEEP)
-                continue
-
             # Cycle pages
             if now - t_page >= CYCLE_SECS:
                 idle_page = 1 - idle_page

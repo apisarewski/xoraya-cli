@@ -1,6 +1,6 @@
 [Unit]
 Description=Xoraya OLED screen daemon
-After=multi-user.target
+After=sysinit.target
 
 [Service]
 Type=simple
