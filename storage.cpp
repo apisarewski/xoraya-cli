@@ -8,6 +8,29 @@
 #include <unistd.h>
 #include <vector>
 
+// /proc/mounts escapes space, tab, backslash and newline in the mount point
+// field as \NNN octal sequences (see the kernel's mangle_path()). Decode
+// them back before comparing, otherwise any mount point containing one of
+// those characters (e.g. a drive labelled "T7 Shield") never matches.
+static std::string unescape_octal(const std::string& s)
+{
+    std::string out;
+    for (size_t i = 0; i < s.size(); ) {
+        if (s[i] == '\\' && i + 3 < s.size() &&
+            s[i + 1] >= '0' && s[i + 1] <= '7' &&
+            s[i + 2] >= '0' && s[i + 2] <= '7' &&
+            s[i + 3] >= '0' && s[i + 3] <= '7') {
+            int val = (s[i + 1] - '0') * 64 + (s[i + 2] - '0') * 8 + (s[i + 3] - '0');
+            out += static_cast<char>(val);
+            i += 4;
+        } else {
+            out += s[i];
+            i += 1;
+        }
+    }
+    return out;
+}
+
 static bool is_mount_point(const std::string& path)
 {
     FILE* f = fopen("/proc/mounts", "r");
@@ -17,7 +40,7 @@ static bool is_mount_point(const std::string& path)
     while (fgets(line, sizeof(line), f)) {
         char dev[256], mnt[256];
         if (sscanf(line, "%255s %255s", dev, mnt) == 2) {
-            if (path == mnt) {
+            if (path == unescape_octal(mnt)) {
                 found = true;
                 break;
             }

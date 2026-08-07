@@ -28,7 +28,14 @@ static long now_ts()
 static std::string sanitise(const std::string& s)
 {
     std::string out;
-    for (char c : s) out += (c == '"') ? '\'' : c;
+    for (char c : s) {
+        switch (c) {
+            case '"':  out += '\''; break;
+            case '\\': out += "\\\\"; break;
+            case '\n': case '\r': case '\t': out += ' '; break;
+            default:   out += c;
+        }
+    }
     return out;
 }
 
