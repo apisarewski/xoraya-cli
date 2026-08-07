@@ -17,6 +17,7 @@
 #include "downloader.hpp"
 #include "collector.hpp"
 #include "storage.hpp"
+#include "StatusWriter.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -55,6 +56,10 @@ static void print_help(const char* prog)
     printf("        --verbose                 Show detailed per-measurement progress\n");
     printf("        --stop-logging            Stop logging during download, restart it afterwards\n");
     printf("        --last <N>                Download only the N most recent measurements (N >= 1)\n\n");
+    printf("  detect-dest\n");
+    printf("      Prints the auto-detected external-drive destination path to stdout,\n");
+    printf("      or an error to stderr and exits 1 if no single external drive is found.\n");
+    printf("      Used by the OLED screen daemon to show storage-detected status.\n\n");
     printf("Options:\n");
     printf("  --help, -h    Display this help.\n");
     printf("\nExamples:\n");
@@ -182,6 +187,7 @@ static int cmd_download(int argc, char** argv)
         dest_dir = detect_dest_dir(err);
         if (dest_dir.empty()) {
             fprintf(stderr, "Error: %s\n", err.c_str());
+            StatusWriter::setError(err);
             return 1;
         }
     }
@@ -307,10 +313,22 @@ int main(int argc, char** argv)
             opts.dest_dir = detect_dest_dir(err);
             if (opts.dest_dir.empty()) {
                 fprintf(stderr, "Error: %s\n", err.c_str());
+                StatusWriter::setError(err);
                 return 1;
             }
         }
         return cmd_collect(opts);
+    }
+
+    if (strcmp(cmd, "detect-dest") == 0) {
+        std::string err;
+        std::string dest_dir = detect_dest_dir(err);
+        if (dest_dir.empty()) {
+            fprintf(stderr, "Error: %s\n", err.c_str());
+            return 1;
+        }
+        printf("%s\n", dest_dir.c_str());
+        return 0;
     }
 
     fprintf(stderr, "Error: unknown command '%s'\n\n", cmd);

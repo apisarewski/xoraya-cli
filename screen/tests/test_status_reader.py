@@ -1,9 +1,6 @@
 import json
-import os
-import tempfile
+import subprocess
 import time
-
-import pytest
 
 
 def write_status(path, data):
@@ -46,15 +43,21 @@ def test_read_xoraya_status_handles_corrupt_json(tmp_path, monkeypatch):
     assert sr.read_xoraya_status() is None
 
 
-def test_get_uptime_returns_string():
+def test_is_storage_detected_true_on_zero_exit(monkeypatch):
     import screen.status_reader as sr
-    result = sr.get_uptime()
-    assert isinstance(result, str)
-    assert len(result) > 0
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args, returncode=0)
+
+    monkeypatch.setattr(sr.subprocess, 'run', fake_run)
+    assert sr.is_storage_detected() is True
 
 
-def test_get_disk_free_returns_string():
+def test_is_storage_detected_false_on_nonzero_exit(monkeypatch):
     import screen.status_reader as sr
-    result = sr.get_disk_free()
-    assert isinstance(result, str)
-    assert len(result) > 0
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args, returncode=1)
+
+    monkeypatch.setattr(sr.subprocess, 'run', fake_run)
+    assert sr.is_storage_detected() is False

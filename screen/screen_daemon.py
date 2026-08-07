@@ -2,14 +2,12 @@
 """
 screen_daemon.py — OLED display daemon for Xoraya datalogger station.
 
-Reads /tmp/xoraya-status.json (written by xoraya-cli) and journal output
-(for databridge) to drive a 128x64 SSD1306 OLED. Two toggle switches on
-GPIO 27/10 start and stop the collect and upload services.
+Reads /tmp/xoraya-status.json (written by xoraya-cli) to drive a 128x64
+SSD1306 OLED. One toggle switch on GPIO 27 starts and stops the collect
+service.
 """
 
-import os
 import subprocess
-import sys
 import time
 from enum import Enum, auto
 
@@ -19,73 +17,49 @@ from luma.oled.device import ssd1306
 
 from status_reader import (
     read_xoraya_status,
-    read_databridge_progress,
     is_service_active,
-    get_ip_address,
-    get_disk_free,
-    get_uptime,
+    is_storage_detected,
 )
 from renderer import (
-    render_boot,
-    render_idle_status,
-    render_idle_system,
+    render_idle,
     render_downloading,
-    render_uploading,
     render_done,
     render_error,
 )
 
 # ── Hardware ──────────────────────────────────────────────────────────────────
 GPIO_SW1   = 27    # Download toggle switch (physical pin 13)
-GPIO_SW2   = 10    # Upload toggle switch   (physical pin 19)
 I2C_PORT   = 1
 I2C_ADDR   = 0x3C
 
 # ── Timing (seconds) ─────────────────────────────────────────────────────────
-BOOT_SECS   = 0
 DONE_SECS   = 5
 ERROR_SECS  = 8
-CYCLE_SECS  = 8
 POLL_SECS   = 1.0
-NET_CHECK_INTERVAL = 10
+STORAGE_CHECK_INTERVAL_ABSENT  = 1   # poll fast so a newly-plugged drive shows up quickly
+STORAGE_CHECK_INTERVAL_PRESENT = 3   # once detected, no need to hammer it every tick
 
 # ── Services ──────────────────────────────────────────────────────────────────
 SVC_COLLECT  = 'xoraya-collect'
-SVC_UPLOAD   = 'databridge'
-DEST_FOLDER  = os.environ.get('DEST', '/home/pi/Dexterlogs')
 
 
 class State(Enum):
-    BOOT        = auto()
     IDLE        = auto()
     DOWNLOADING = auto()
-    UPLOADING   = auto()
     DONE        = auto()
     ERROR       = auto()
 
 
-def count_local_mf4(folder=None):
-    path = folder or DEST_FOLDER
-    try:
-        return sum(1 for f in os.listdir(path) if f.endswith('.mf4'))
-    except OSError:
-        return 0
-
-
-def check_net():
-    r = subprocess.run(
-        ['ping', '-c', '1', '-W', '1', '8.8.8.8'],
-        capture_output=True,
-    )
-    return r.returncode == 0
-
-
 def svc_start(name):
-    subprocess.run(['systemctl', 'start', name], capture_output=True)
+    # Managing units over D-Bus needs polkit authorization, which is only
+    # granted for free outside an active graphical session with pi's
+    # passwordless sudo — plain `systemctl start/stop` here silently no-ops
+    # with "Interactive authentication required" and capture_output hides it.
+    subprocess.run(['sudo', 'systemctl', 'start', name], capture_output=True)
 
 
 def svc_stop(name):
-    subprocess.run(['systemctl', 'stop', name], capture_output=True)
+    subprocess.run(['sudo', 'systemctl', 'stop', name], capture_output=True)
 
 
 def main():
@@ -93,89 +67,54 @@ def main():
     oled   = ssd1306(serial)
 
     sw1 = Button(GPIO_SW1, pull_up=True, bounce_time=0.05)
-    sw2 = Button(GPIO_SW2, pull_up=True, bounce_time=0.05)
 
-    state       = State.BOOT
-    t_state     = time.monotonic()
-    idle_page   = 0
-    t_page      = time.monotonic()
     error_badge = None
     done_info   = {}
-    net_ok      = False
-    t_net       = 0.0
-    prev_sw1    = sw1.is_pressed
-    prev_sw2    = sw2.is_pressed
+    storage_ok  = False
+    t_storage   = 0.0
+
+    # Sync to the physical switch instead of always assuming IDLE: a daemon
+    # restart must not leave collect running unsupervised (switch OFF but a
+    # previous run's process still active) or leave a download unattended
+    # (switch already ON at startup).
+    prev_sw1 = sw1.is_pressed
+    if prev_sw1:
+        svc_start(SVC_COLLECT)
+        state = State.DOWNLOADING
+    else:
+        svc_stop(SVC_COLLECT)
+        state = State.IDLE
+    t_state = time.monotonic()
 
     def transition(new_state):
-        nonlocal state, t_state, idle_page, t_page
+        nonlocal state, t_state
         state   = new_state
         t_state = time.monotonic()
-        idle_page = 0
-        t_page  = time.monotonic()
 
     while True:
         now     = time.monotonic()
         elapsed = now - t_state
 
-        # ── Network (every 10 s) ──────────────────────────────────────────────
-        if now - t_net > NET_CHECK_INTERVAL:
-            net_ok = check_net()
-            t_net  = now
+        # ── Storage ────────────────────────────────────────────────────────────
+        interval = STORAGE_CHECK_INTERVAL_PRESENT if storage_ok else STORAGE_CHECK_INTERVAL_ABSENT
+        if now - t_storage > interval:
+            storage_ok = is_storage_detected()
+            t_storage  = now
 
         # ── Switch transitions ────────────────────────────────────────────────
-        cur_sw1 = sw1.is_pressed
-        cur_sw2 = sw2.is_pressed
-        sw1_rose  = cur_sw1 and not prev_sw1   # OFF -> ON
-        sw1_fell  = not cur_sw1 and prev_sw1   # ON -> OFF
-        sw2_rose  = cur_sw2 and not prev_sw2
-        sw2_fell  = not cur_sw2 and prev_sw2
-        prev_sw1  = cur_sw1
-        prev_sw2  = cur_sw2
+        cur_sw1  = sw1.is_pressed
+        sw1_rose = cur_sw1 and not prev_sw1   # OFF -> ON
+        sw1_fell = not cur_sw1 and prev_sw1   # ON -> OFF
+        prev_sw1 = cur_sw1
 
         # ── State machine ─────────────────────────────────────────────────────
 
-        if state == State.BOOT:
-            oled.display(render_boot())
-            if elapsed >= BOOT_SECS:
-                transition(State.IDLE)
-
-        elif state == State.IDLE:
-            # Cycle pages
-            if now - t_page >= CYCLE_SECS:
-                idle_page = 1 - idle_page
-                t_page = now
-
-            status = read_xoraya_status()
-            device = status.get('device', '') if status else ''
-            dest   = status.get('dest_dir', None) if status else None
-
-            if idle_page == 0:
-                oled.display(render_idle_status(
-                    device=device,
-                    net_ok=net_ok,
-                    logger_files=status.get('files_total', 0) if status else 0,
-                    local_files=count_local_mf4(dest),
-                    last_upload=done_info.get('last_upload', 'never'),
-                    sw1=cur_sw1,
-                    sw2=cur_sw2,
-                    error_badge=error_badge,
-                ))
-            else:
-                oled.display(render_idle_system(
-                    ip=get_ip_address(),
-                    disk_free=get_disk_free(),
-                    uptime=get_uptime(),
-                    sw1=cur_sw1,
-                    sw2=cur_sw2,
-                ))
+        if state == State.IDLE:
+            oled.display(render_idle(storage_ok))
 
             if sw1_rose:
                 svc_start(SVC_COLLECT)
                 transition(State.DOWNLOADING)
-                continue
-            if sw2_rose:
-                svc_start(SVC_UPLOAD)
-                transition(State.UPLOADING)
                 continue
 
         elif state == State.DOWNLOADING:
@@ -183,29 +122,31 @@ def main():
             scanning = (status is None) or (status.get('state') == 'scanning')
 
             oled.display(render_downloading(
-                device=status.get('device', '') if status else '',
+                storage_ok=storage_ok,
                 file_idx=status.get('files_done', 0) if status else 0,
                 total=status.get('files_total', 0) if status else 0,
                 pct=status.get('pct', 0.0) if status else 0.0,
                 speed_mbps=status.get('speed_mbps', 0.0) if status else 0.0,
                 eta_s=status.get('eta_s', 0) if status else 0,
-                sw1=cur_sw1,
-                sw2=cur_sw2,
                 scanning=scanning,
             ))
 
             if status and status.get('state') == 'done':
                 done_info = {
-                    'type': 'download',
                     'files': status.get('files_done', 0),
                     'bytes': status.get('bytes_total', 0),
-                    'last_upload': done_info.get('last_upload', 'never'),
                 }
                 error_badge = None
                 transition(State.DONE)
             elif status and status.get('state') == 'error':
                 error_badge = status.get('msg', 'error')[:20]
-                done_info['type'] = 'download'
+                transition(State.ERROR)
+            elif not storage_ok:
+                # collect's --interval loop resolves dest_dir once at startup and
+                # never re-checks it — it would happily keep scanning forever
+                # even after the drive is pulled. Catch that here instead.
+                svc_stop(SVC_COLLECT)
+                error_badge = 'drive removed'
                 transition(State.ERROR)
             elif not is_service_active(SVC_COLLECT) and status is None:
                 transition(State.IDLE)
@@ -214,67 +155,21 @@ def main():
                 svc_stop(SVC_COLLECT)
                 transition(State.IDLE)
 
-        elif state == State.UPLOADING:
-            db = read_databridge_progress()
-
-            uploaded = db['uploaded'] if db else 0
-            skipped  = db['skipped']  if db else 0
-            failed   = db['failed']   if db else 0
-            total    = uploaded + skipped + failed
-
-            oled.display(render_uploading(
-                uploaded=uploaded,
-                total=total,
-                skipped=skipped,
-                failed=failed,
-                sw1=cur_sw1,
-                sw2=cur_sw2,
-            ))
-
-            if not is_service_active(SVC_UPLOAD):
-                if db is not None and db['failed'] == 0:
-                    done_info = {
-                        'type': 'upload',
-                        'uploaded': uploaded,
-                        'failed': failed,
-                        'last_upload': time.strftime('%H:%M'),
-                    }
-                    error_badge = None
-                    transition(State.DONE)
-                else:
-                    if db:
-                        error_badge = f"{failed} failed"
-                    done_info['type'] = 'upload'
-                    transition(State.ERROR)
-
-            if sw2_fell:
-                svc_stop(SVC_UPLOAD)
-                transition(State.IDLE)
-
         elif state == State.DONE:
-            if done_info.get('type') == 'download':
-                files = done_info.get('files', 0)
-                mb    = done_info.get('bytes', 0) / 1e6
-                oled.display(render_done(
-                    'Download complete',
-                    f'Files: {files}',
-                    f'{mb:.0f} MB' if mb > 0 else '',
-                ))
-            else:
-                oled.display(render_done(
-                    'Upload complete',
-                    f"Uploaded: {done_info.get('uploaded', 0)}",
-                    f"Failed: {done_info.get('failed', 0)}",
-                ))
+            files = done_info.get('files', 0)
+            mb    = done_info.get('bytes', 0) / 1e6
+            oled.display(render_done(
+                'Download complete',
+                f'Files: {files}',
+                f'{mb:.0f} MB' if mb > 0 else '',
+            ))
             if elapsed >= DONE_SECS:
                 transition(State.IDLE)
 
         elif state == State.ERROR:
-            svc = 'journalctl -u xoraya' if done_info.get('type') == 'download' \
-                  else 'journalctl -u databridge'
-            title = 'Download failed' if done_info.get('type') == 'download' \
-                    else 'Upload failed'
-            oled.display(render_error(title, error_badge or '', svc))
+            oled.display(render_error(
+                'Download failed', error_badge or '', 'journalctl -u xoraya-collect',
+            ))
             if elapsed >= ERROR_SECS:
                 transition(State.IDLE)
 

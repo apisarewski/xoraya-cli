@@ -224,106 +224,9 @@ sudo systemctl restart xoraya-collect
 
 ---
 
-## DataBridge upload service
+## OLED Screen and Toggle Switch
 
-Once DataBridgeCLI is deployed on the Pi, install the upload service so collected MF4 files are automatically uploaded to Azure.
-
-### Prerequisites
-
-1. Copy `DataBridgeCLI` and `libDataBridgeCore.so.2.0.0` to the Pi:
-
-```bash
-ssh pi@192.168.1.51 "mkdir -p ~/Documents/master/databridge/build/linux-x64/DataBridgeCLI"
-
-scp /path/to/DataBridgeCLI \
-    /path/to/libDataBridgeCore.so.2.0.0 \
-    pi@192.168.1.51:~/Documents/master/databridge/build/linux-x64/DataBridgeCLI/
-```
-
-2. Create symlinks on the Pi:
-
-```bash
-ssh pi@192.168.1.51 "cd ~/Documents/master/databridge/build/linux-x64/DataBridgeCLI && \
-  ln -sf libDataBridgeCore.so.2.0.0 libDataBridgeCore.so.2 && \
-  ln -sf libDataBridgeCore.so.2.0.0 libDataBridgeCore.so"
-```
-
-3. Copy the required x86-64 OpenSSL libraries (Box64 needs these to emulate crypto):
-
-```bash
-scp /usr/lib/x86_64-linux-gnu/libssl.so.3 \
-    /usr/lib/x86_64-linux-gnu/libcrypto.so.3 \
-    pi@192.168.1.51:/tmp/
-ssh pi@192.168.1.51 "sudo mv /tmp/libssl.so.3 /tmp/libcrypto.so.3 /lib/x2e/"
-```
-
-4. Create `/home/pi/xoraya_cli/databridge.conf` (chmod 600) with your credentials:
-
-```bash
-cp ~/xoraya_cli/databridge.conf.example /home/pi/xoraya_cli/databridge.conf
-chmod 600 /home/pi/xoraya_cli/databridge.conf
-# Edit the file and fill in DEST, DATABRIDGE_BLOB_SAS_TOKEN_EU, and all
-# DATABRIDGE_MONITOR_* variables with real values.
-```
-
-> **Security:** `databridge.conf` contains secrets — it is git-ignored and must never be committed.
-
-### Install the service
-
-```bash
-sudo cp ~/xoraya_cli/databridge.service /etc/systemd/system/databridge.service
-sudo systemctl daemon-reload
-sudo systemctl enable databridge
-sudo systemctl start databridge
-```
-
-Check it is running:
-
-```bash
-sudo systemctl status databridge
-journalctl -u databridge -f
-```
-
-Expected: DataBridgeCLI starts, connects to Azure Blob Storage, scans `/home/pi/Dexterlogs`, then exits with code 0. Systemd restarts it every 60 seconds.
-
-### How it works
-
-DataBridgeCLI is a one-shot uploader: it scans the logs folder, uploads any new MF4 files, and exits. The service uses `Restart=always` with `RestartSec=60` to poll every 60 seconds.
-
-`BOX64_DYNAREC=0` is required — Box64's JIT recompiler mishandles x86-64 AES/SHA instructions used by the embedded OpenSSL, causing SSL connect errors. Interpreter mode is slower but correct.
-
-### Known limitation
-
-Azure Monitor telemetry (audit log upload) fails with a Qt SSL version mismatch under Box64. This is a Box64 issue with OpenSSL version reporting; it does not affect MF4 file uploads.
-
-### Both services together
-
-Check both are running:
-
-```bash
-sudo systemctl status xoraya-collect databridge
-```
-
-View combined logs:
-
-```bash
-journalctl -u xoraya-collect -u databridge --since "5 minutes ago"
-```
-
-### Day-to-day operations (DataBridge)
-
-| Task | Command |
-|---|---|
-| View live logs | `journalctl -u databridge -f` |
-| Restart after config change | `sudo systemctl restart databridge` |
-| Check status | `sudo systemctl status databridge` |
-| Stop | `sudo systemctl stop databridge` |
-
----
-
-## OLED Screen and Toggle Switches
-
-The station includes a 128×64 SSD1306 OLED display and two toggle flip switches wired directly to the Pi GPIO header.
+The station includes a 128×64 SSD1306 OLED display and one toggle flip switch wired directly to the Pi GPIO header. The screen shows the station header, whether an external drive is detected, and the download ON/OFF state (with a progress bar while a download is running).
 
 ### Hardware
 
@@ -332,7 +235,6 @@ The station includes a 128×64 SSD1306 OLED display and two toggle flip switches
 | Display | SSD1306 — 128×64 monochrome OLED |
 | Interface | I2C bus 1, address `0x3C` |
 | Switch 1 | GPIO 27 — Download (starts/stops `xoraya-collect`) |
-| Switch 2 | GPIO 10 — Upload (starts/stops `databridge`) |
 
 ### Wiring
 
@@ -345,19 +247,17 @@ Pin 5  (GPIO3)  I2C SCL       SCL  (OLED)
 Pin 6  (GND)    Ground        GND  (OLED)
 Pin 13 (GPIO27) Switch 1 COM  COM terminal of SW1 (Download)
 Pin 14 (GND)    Switch 1 GND  GND terminal of SW1
-Pin 19 (GPIO10) Switch 2 COM  COM terminal of SW2 (Upload)
-Pin 20 (GND)    Switch 2 GND  GND terminal of SW2
 ```
 
-The toggle switches are **miniature SPDT ON-ON** (1CO, 3 terminals, soldering lugs). Both positions are always active — there is no centre-off position.
+The toggle switch is a **miniature SPDT ON-ON** (1CO, 3 terminals, soldering lugs). Both positions are always active — there is no centre-off position.
 
 | Terminal | Connect to |
 |----------|------------|
-| **COM** (centre lug) | GPIO pin — Pin 11 (SW1) or Pin 13 (SW2) |
+| **COM** (centre lug) | GPIO pin — Pin 13 |
 | **One end lug** | GND |
 | **Other end lug** | Leave unconnected |
 
-The firmware uses the Pi's internal pull-up resistors:
+The firmware uses the Pi's internal pull-up resistor:
 - Switch flipped toward the **GND lug** → COM pulled to GND → GPIO reads LOW → `is_pressed = True` → service starts
 - Switch flipped toward the **open lug** → COM floats high via pull-up → GPIO reads HIGH → `is_pressed = False` → service stops
 
@@ -373,13 +273,11 @@ sudo i2cdetect -y 1
 # Enable I2C if not already active
 sudo raspi-config   # → Interface Options → I2C → Enable
 
-# Read current switch positions
+# Read current switch position
 python3 -c "
 from gpiozero import Button
 sw1 = Button(27, pull_up=True)
-sw2 = Button(10, pull_up=True)
 print('SW1 (Download):', 'ON' if sw1.is_pressed else 'OFF')
-print('SW2 (Upload)  :', 'ON' if sw2.is_pressed else 'OFF')
 "
 ```
 
@@ -398,7 +296,7 @@ sudo systemctl enable xoraya-screen
 sudo systemctl start xoraya-screen
 ```
 
-Verify it is running and the OLED shows the boot screen:
+Verify it is running and the OLED shows the idle screen (header, storage status, "Download: OFF"):
 
 ```bash
 sudo systemctl status xoraya-screen

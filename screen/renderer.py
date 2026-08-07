@@ -3,138 +3,100 @@ from PIL import Image, ImageDraw, ImageFont
 WIDTH  = 128
 HEIGHT = 64
 
+# This SSD1306 panel is physically two-color: any pixel lit within the top
+# 16 rows renders yellow, everything below renders blue. Keep all content
+# below this line so the whole screen reads as a single color.
+SAFE_TOP = 16
+
 
 def _canvas():
     img = Image.new('1', (WIDTH, HEIGHT), 0)
     return img, ImageDraw.Draw(img)
 
 
-def _font(size=8):
+def _font(size):
     return ImageFont.load_default(size=size)
 
 
-def _sw_row(d, sw1, sw2, y=53):
-    f = _font()
-    d.rectangle([(0, y), (57, 63)], outline=1)
-    d.text((3, y + 2), f'DL {"ON " if sw1 else "off"}', font=f, fill=1)
-    d.rectangle([(70, y), (127, 63)], outline=1)
-    d.text((73, y + 2), f'UP {"ON " if sw2 else "off"}', font=f, fill=1)
+_HEADER_FONT = _font(14)   # brand line, drawn in the yellow band
+_STATUS_FONT = _font(11)   # combined storage/download line
+_BODY_FONT   = _font(12)   # file/pct, speed/eta, done/error text, idle status lines
+_VALUE_FONT  = _font(18)   # big hero values (SCANNING, done stats)
+_VALUE_FONT_SM = _font(14) # big hero values when two lines must fit
+_SMALL_FONT  = _font(9)    # error/detail lines (may hold longer free text)
 
 
-def _divider(d, y):
-    d.line([(0, y), (127, y)], fill=1)
-
-
-def _bar(d, pct, y=35, height=8):
+def _bar(d, pct, y, height=10):
     d.rectangle([(0, y), (127, y + height - 1)], outline=1)
     w = max(0, int(pct / 100.0 * 126))
     if w > 0:
         d.rectangle([(1, y + 1), (w, y + height - 2)], fill=1)
 
 
-def render_boot(version='1.0.0'):
+def _centered_text(d, y, text, font):
+    w = d.textbbox((0, 0), text, font=font)[2]
+    d.text(((WIDTH - w) // 2, y), text, font=font, fill=1)
+
+
+def _right_text(d, y, text, font):
+    w = d.textbbox((0, 0), text, font=font)[2]
+    d.text((WIDTH - w, y), text, font=font, fill=1)
+
+
+def _status_line(d, y, storage_ok, download_on):
+    d.text((0, y), f'STORAGE: {"YES" if storage_ok else "NO"}', font=_STATUS_FONT, fill=1)
+    _right_text(d, y, f'DL: {"ON" if download_on else "OFF"}', _STATUS_FONT)
+
+
+def _header(d):
+    _centered_text(d, 0, 'DISTALMOTION SA', _HEADER_FONT)
+
+
+def render_idle(storage_ok):
     img, d = _canvas()
-    f = _font()
-    d.text((8, 10), 'DISTALMOTION SA', font=f, fill=1)
-    d.text((8, 22), 'DATALOGGER STATION', font=f, fill=1)
-    _divider(d, 34)
-    d.text((10, 38), f'v{version} · Starting...', font=f, fill=1)
+    _header(d)
+    _centered_text(d, 23, f'Storage: {"DETECTED" if storage_ok else "NOT FOUND"}', _BODY_FONT)
+    _centered_text(d, 43, 'Download: OFF', _BODY_FONT)
     return img
 
 
-def render_idle_status(device, net_ok, logger_files, local_files,
-                       last_upload, sw1, sw2, error_badge=None):
+def render_downloading(storage_ok, file_idx, total, pct,
+                        speed_mbps, eta_s, scanning=False):
     img, d = _canvas()
-    f = _font()
-    d.text((0, 0), device or 'No logger', font=f, fill=1)
-    net_str = '* NET' if net_ok else 'o ---'
-    d.text((90, 0), net_str, font=f, fill=1)
-    _divider(d, 11)
-    d.text((0, 14), f'Logger files: {logger_files}', font=f, fill=1)
-    d.text((0, 24), f'Local files:  {local_files}', font=f, fill=1)
-    d.text((0, 34), f'Last:  {last_upload}', font=f, fill=1)
-    if error_badge:
-        d.text((0, 44), f'! {error_badge}', font=f, fill=1)
-    _divider(d, 53)
-    _sw_row(d, sw1, sw2)
-    return img
+    _header(d)
+    _status_line(d, SAFE_TOP, storage_ok, download_on=True)
 
-
-def render_idle_system(ip, disk_free, uptime, sw1, sw2):
-    img, d = _canvas()
-    f = _font()
-    d.text((0, 0), 'SYSTEM', font=f, fill=1)
-    d.text((72, 0), 'pi@xoraya', font=f, fill=1)
-    _divider(d, 11)
-    d.text((0, 14), f'IP:       {ip}', font=f, fill=1)
-    d.text((0, 24), f'Disk:     {disk_free}', font=f, fill=1)
-    d.text((0, 34), f'Uptime:   {uptime}', font=f, fill=1)
-    _divider(d, 53)
-    _sw_row(d, sw1, sw2)
-    return img
-
-
-def render_downloading(device, file_idx, total, pct,
-                       speed_mbps, eta_s, sw1, sw2, scanning=False):
-    img, d = _canvas()
-    f = _font()
-    d.text((0, 0), 'v DOWNLOADING', font=f, fill=1)
-    _divider(d, 11)
-    d.text((0, 14), f'{device}  ->  Pi', font=f, fill=1)
     if scanning or total == 0:
-        d.text((0, 26), 'Scanning...', font=f, fill=1)
+        _centered_text(d, 38, 'SCANNING', _VALUE_FONT)
     else:
-        d.text((0, 26), f'File {file_idx} / {total}', font=f, fill=1)
-        d.text((98, 26), f'{int(pct)}%', font=f, fill=1)
-        _bar(d, pct, y=36, height=7)
+        d.text((0, 28), f'File {file_idx} / {total}', font=_BODY_FONT, fill=1)
+        d.text((94, 28), f'{int(pct)}%', font=_BODY_FONT, fill=1)
+        _bar(d, pct, y=41, height=9)
         m, s = divmod(int(eta_s), 60)
-        d.text((0, 45), f'{speed_mbps:.1f} MB/s', font=f, fill=1)
-        d.text((80, 45), f'ETA {m}:{s:02d}', font=f, fill=1)
-    _divider(d, 53)
-    _sw_row(d, sw1, sw2)
-    return img
-
-
-def render_uploading(uploaded, total, skipped, failed, sw1, sw2):
-    img, d = _canvas()
-    f = _font()
-    d.text((0, 0), '^ UPLOADING', font=f, fill=1)
-    _divider(d, 11)
-    d.text((0, 14), 'Pi  ->  Azure Blob', font=f, fill=1)
-    pct = int(uploaded / total * 100) if total > 0 else 0
-    d.text((0, 26), f'{uploaded} / {total} files', font=f, fill=1)
-    d.text((98, 26), f'{pct}%', font=f, fill=1)
-    _bar(d, pct, y=36, height=7)
-    d.text((0, 45), f'{skipped} skip · {failed} fail', font=f, fill=1)
-    _divider(d, 53)
-    _sw_row(d, sw1, sw2)
+        d.text((0, 51), f'{speed_mbps:.1f} MB/s', font=_BODY_FONT, fill=1)
+        d.text((70, 51), f'ETA {m}:{s:02d}', font=_BODY_FONT, fill=1)
     return img
 
 
 def render_done(title, stats_line1, stats_line2=''):
     img, d = _canvas()
-    f = _font()
-    d.text((54, 4), 'OK', font=f, fill=1)
-    d.text((10, 18), title, font=f, fill=1)
-    _divider(d, 30)
-    d.text((0, 34), stats_line1, font=f, fill=1)
+    _header(d)
+    _centered_text(d, SAFE_TOP, title, _BODY_FONT)
     if stats_line2:
-        d.text((0, 46), stats_line2, font=f, fill=1)
+        _centered_text(d, 32, stats_line1, _VALUE_FONT_SM)
+        _centered_text(d, 48, stats_line2, _VALUE_FONT_SM)
+    else:
+        _centered_text(d, 38, stats_line1, _VALUE_FONT)
     return img
 
 
 def render_error(title, detail='', hint=''):
     img, d = _canvas()
-    f = _font()
-    d.text((0, 2), f'!  {title}', font=f, fill=1)
-    _divider(d, 14)
+    _header(d)
+    d.text((0, SAFE_TOP), f'!  {title}', font=_BODY_FONT, fill=1)
     if detail:
-        d.text((0, 18), detail, font=f, fill=1)
+        d.text((0, 30), detail, font=_SMALL_FONT, fill=1)
     if hint:
-        d.text((0, 32), 'Logs:', font=f, fill=1)
-        d.text((0, 44), hint, font=f, fill=1)
+        d.text((0, 43), 'Logs:', font=_SMALL_FONT, fill=1)
+        d.text((0, 54), hint, font=_SMALL_FONT, fill=1)
     return img
-
-
-def render_sleep():
-    return Image.new('1', (WIDTH, HEIGHT), 0)

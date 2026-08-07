@@ -153,19 +153,16 @@ int cmd_collect(const CollectOptions& opts);
 - Pi IP: `192.168.1.51`, user `pi`
 - Binary deployed at `/usr/local/bin/xoraya-cli` (Box64 emulation)
 - Service: `xoraya-collect.service` (running)
-- Upload service: `databridge.service`
 
 ### OLED screen daemon
 
-Files in `screen/`:
-- `screen_daemon.py` — state machine (BOOT→IDLE↔DOWNLOADING/UPLOADING→DONE/ERROR)
+No upload feature — the station only downloads. Files in `screen/`:
+- `screen_daemon.py` — state machine (IDLE↔DOWNLOADING→DONE/ERROR)
 - `renderer.py` — all rendering functions, returns 128×64 PIL Image mode '1'
-- `status_reader.py` — reads `/tmp/xoraya-status.json`, journalctl, system info
-- `boot_splash.py` — minimal oneshot script, shows static boot screen early at boot
+- `status_reader.py` — reads `/tmp/xoraya-status.json`, systemd unit status, and storage detection (via `xoraya-cli detect-dest`)
 - `xoraya-screen.service` — full daemon, `After=sysinit.target`, `Restart=always`
-- `xoraya-screen-splash.service` — oneshot splash, `DefaultDependencies=no`, `WantedBy=sysinit.target`
 
-Both services installed and enabled on the Pi.
+Screen shows: header ("Distalmotion SA - DataExtractor"), storage detected Y/N, download ON/OFF, and a progress bar while downloading.
 
 ### Hardware wiring
 
@@ -176,17 +173,19 @@ Pin 5  (GPIO3)  → SCL  (OLED)
 Pin 6  (GND)    → GND  (OLED)
 Pin 13 (GPIO27) → COM  of SW1 (Download toggle)
 Pin 14 (GND)    → GND terminal of SW1
-Pin 19 (GPIO10) → COM  of SW2 (Upload toggle)
-Pin 20 (GND)    → GND terminal of SW2
 ```
 
 Switch type: miniature SPDT ON-ON, soldering lugs. COM→GPIO, one end→GND, other end→unconnected.
-gpiozero: `Button(27, pull_up=True)` and `Button(10, pull_up=True)`.
+gpiozero: `Button(27, pull_up=True)`.
 I2C enabled via `raspi-config nonint do_i2c 0`. `i2cdetect -y 1` shows `3c`.
 
 ### Resolved (2026-07-29): OLED not displaying anything
 
-Root cause was **not hardware**: `screen_daemon.py` read the toggle switches on GPIO 17/27, but the actual wiring uses GPIO 27/10 (physical pins 13/19). Fixed pin assignments to match wiring, removed the unused `SLEEP` state, and added `boot_splash.py` (oneshot `xoraya-screen-splash.service`, `WantedBy=sysinit.target`) to show a static splash very early at boot, before the main daemon starts. Committed in `0c3f264`.
+Root cause was **not hardware**: `screen_daemon.py` read the toggle switches on GPIO 17/27, but the actual wiring uses GPIO 27/10 (physical pins 13/19). Fixed pin assignments to match wiring, removed the unused `SLEEP` state. Committed in `0c3f264`.
+
+### Redesign (2026-08-07): upload removed, screen simplified
+
+Dropped the upload feature (`databridge.service`, `databridge.conf.example`) and the upload half of the OLED UI entirely — the station is download-only now. Removed the boot-splash service (`boot_splash.py`, `xoraya-screen-splash.service`) and the cycling system-info page (IP/disk/uptime). The daemon is now a single switch (GPIO 27, download) driving a single persistent screen: header, storage-detected status (via `xoraya-cli detect-dest`), download ON/OFF, and a progress bar while downloading. `render_done`/`render_error` are kept as brief transient screens after a download finishes or fails.
 
 ### StatusWriter (C++)
 
